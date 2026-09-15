@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ session_name }} : GridSquare_{{ id_str }}</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 1em 2em;
+      background: #1a1a1a;
+      color: #ddd;
+    }
+    h1 { margin-bottom: 0.25em; }
+    .back-link { display: inline-block; margin-bottom: 1em; color: #adf; }
+
+    .layout {
+      display: flex;
+      gap: 2em;
+      align-items: flex-start;
+    }
+
+    /* --- gridsquare image + SVG overlay --- */
+    .gs-col {
+      flex-shrink: 0;
+    }
+    .gs-nav {
+      margin-top: 0.75em;
+    }
+    .gs-wrap {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+    }
+    .gs-wrap img {
+      max-width: 600px;
+      display: block;
+    }
+    .gs-wrap svg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+    svg circle {
+      fill: transparent;
+      stroke: transparent;
+      cursor: pointer;
+      transition: fill 0.1s, stroke 0.1s;
+    }
+    svg circle:hover {
+      fill: rgba(255, 255, 100, 0.25);
+      stroke: rgba(255, 255, 100, 0.8);
+      stroke-width: 4;
+    }
+    svg circle.selected {
+      fill: rgba(255, 200, 50, 0.35);
+      stroke: rgba(255, 200, 50, 0.9);
+      stroke-width: 5;
+    }
+
+    /* --- data panel --- */
+    .data-panel {
+      flex: 1;
+      min-width: 0;
+    }
+    #prompt {
+      color: #888;
+      font-style: italic;
+    }
+    .hole-data { display: none; }
+    .hole-data.active { display: block; }
+    .hole-data h3 { margin-top: 0; color: #fc8; }
+    .hole-data img {
+      max-width: 100%;
+      display: block;
+      margin-bottom: 1em;
+    }
+    .hole-data .section-label {
+      font-size: 0.8em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #888;
+      margin: 0.5em 0 0.25em;
+    }
+  </style>
+</head>
+<body>
+  <h1>{{ session_name }} : GridSquare_{{ id_str }}</h1>
+
+  <div class="layout">
+
+    <!-- Left: annotated gridsquare image with clickable hole overlay -->
+    <div class="gs-col">
+      <div class="gs-wrap">
+        <img src="GridSquare_{{ id_str }}_annotated.png" alt="GridSquare {{ id_str }}">
+        <svg id="gs-svg"
+             viewBox="0 0 {{ gs_width }} {{ gs_height }}"
+             xmlns="http://www.w3.org/2000/svg">
+          {% for hole in holes %}
+          <circle
+            data-hole-id="{{ hole.id_str }}"
+            cx="{{ hole.cx }}" cy="{{ hole.cy }}" r="{{ hole.r }}"
+            title="Hole {{ hole.id_str }}"
+          />
+          {% endfor %}
+        </svg>
+      </div>
+      <div class="gs-nav">
+        <a class="back-link" href="../index.html">← Back to atlas</a>
+        |
+        <a class="back-link" href="{{ next_link }}">Next grid square →</a>
+      </div>
+    </div>
+
+    <!-- Right: images for the selected hole -->
+    <div class="data-panel">
+      <p id="prompt">Click a hole to view images</p>
+
+      {% for hole in holes %}
+      <div class="hole-data" id="hole-{{ hole.id_str }}">
+        <h3>Hole {{ hole.id_str }}</h3>
+
+        {% if hole.data_pngs %}
+        <div class="section-label">Data ({{ hole.data_pngs | length }} exposure{{ 's' if hole.data_pngs | length != 1 }})</div>
+        {% for p in hole.data_pngs %}
+        <img data-src="{{ p }}" alt="{{ p }}">
+        {% endfor %}
+        {% endif %}
+
+        {% if hole.foilhole_png %}
+        <div class="section-label">Foil hole</div>
+        <img data-src="{{ hole.foilhole_png }}" alt="FoilHole {{ hole.id_str }}">
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+  </div>
+
+  <script>
+    var circles = document.querySelectorAll('#gs-svg circle');
+    var prompt  = document.getElementById('prompt');
+
+    circles.forEach(function(circle) {
+      circle.addEventListener('click', function() {
+        var holeId = this.dataset.holeId;
+
+        // Deselect all
+        circles.forEach(function(c) { c.classList.remove('selected'); });
+        document.querySelectorAll('.hole-data').forEach(function(d) {
+          d.classList.remove('active');
+        });
+
+        // Select clicked
+        this.classList.add('selected');
+        prompt.style.display = 'none';
+
+        var panel = document.getElementById('hole-' + holeId);
+        if (panel) {
+          panel.classList.add('active');
+          // Lazy-load: set src from data-src the first time this panel is shown
+          panel.querySelectorAll('img[data-src]').forEach(function(img) {
+            if (!img.src || img.src === window.location.href) {
+              img.src = img.dataset.src;
+            }
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

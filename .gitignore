@@ -1,0 +1,20 @@
+# Examples data (large, not part of source)
+examples/
+
+# Planning notes
+plan.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/

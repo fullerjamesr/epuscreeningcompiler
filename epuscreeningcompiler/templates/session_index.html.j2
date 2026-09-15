@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ session_name }} — Atlas</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 1em 2em;
+      background: #1a1a1a;
+      color: #ddd;
+    }
+    h1 { margin-bottom: 0.25em; }
+    .controls {
+      margin: 0.75em 0 1em;
+      display: flex;
+      gap: 1.5em;
+      align-items: center;
+    }
+    label { cursor: pointer; font-size: 1em; }
+    .atlas-wrap {
+      position: relative;
+      display: inline-block;
+      line-height: 0;   /* remove gap below img */
+    }
+    .atlas-wrap img {
+      max-width: 100%;
+      display: block;
+    }
+    .atlas-wrap svg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+    svg polygon {
+      fill: transparent;
+      stroke: transparent;
+      cursor: pointer;
+      transition: fill 0.1s;
+    }
+    svg polygon:hover {
+      fill: rgba(255, 255, 100, 0.25);
+      stroke: rgba(255, 255, 100, 0.7);
+      stroke-width: 4;
+    }
+  </style>
+</head>
+<body>
+  <h1>{{ session_name }}</h1>
+
+  <div class="controls">
+    <strong>View:</strong>
+    <label>
+      <input type="radio" name="atlas-view" value="selected" checked>
+      Selected gridsquares
+    </label>
+    <label>
+      <input type="radio" name="atlas-view" value="categories">
+      All categories
+    </label>
+  </div>
+
+  <div class="atlas-wrap">
+    <img id="atlas-img" src="atlas_selected.png" alt="Atlas">
+    <svg id="atlas-svg"
+         viewBox="0 0 {{ atlas_width }} {{ atlas_height }}"
+         xmlns="http://www.w3.org/2000/svg">
+      {% for gs in gridsquares %}
+      <polygon
+        data-href="{{ gs.link }}"
+        points="{{ gs.vertices_str }}"
+        title="GridSquare {{ gs.id_str }}"
+      />
+      {% endfor %}
+    </svg>
+  </div>
+
+  <script>
+    // Radio toggle: swap atlas image and show/hide clickable overlay
+    document.querySelectorAll('input[name="atlas-view"]').forEach(function(radio) {
+      radio.addEventListener('change', function() {
+        var img = document.getElementById('atlas-img');
+        var svg = document.getElementById('atlas-svg');
+        if (this.value === 'selected') {
+          img.src = 'atlas_selected.png';
+          svg.style.display = '';
+        } else {
+          img.src = 'atlas_categories.png';
+          svg.style.display = 'none';
+        }
+      });
+    });
+
+    // Click a gridsquare polygon → navigate to its index.html
+    document.querySelectorAll('#atlas-svg polygon').forEach(function(poly) {
+      poly.addEventListener('click', function() {
+        window.location.href = this.dataset.href;
+      });
+    });
+  </script>
+</body>
+</html>
