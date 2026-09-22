@@ -3,6 +3,9 @@ from enum import Enum
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import mrcfile
+from sklearn.mixture import GaussianMixture
+import pzdip
+
 
 class DefaultSigmaContrast(Enum):
     ATLAS = 999.0
@@ -62,6 +65,18 @@ def sigma_contrast_arr(data, sigma=3.0, mu=None, std=None, new_range=(0, 1), inp
             data[:] = np.clip(data_, bottom, top) * slope + b
     else:
         return np.clip(data_, bottom, top) * slope + b
+
+
+def auto_contrast(arr, sigma=3.0, new_range=(0, 1), inplace=False):
+    # apply sigma contrast if unimodal, else fit 2 component gmm and sigma contrast based on the brighter component
+    if pzdip.zdip(arr, downsample=True).multimodal:
+        gmm = GaussianMixture(n_components=2, covariance_type="full")
+        gmm.fit(arr.reshape(-1, 1))
+        mean = gmm.means_.ravel()[1]
+        std = np.sqrt(gmm.covariances_.ravel()[1])
+        return sigma_contrast_arr(arr, sigma=sigma, mu=mean, std=std, new_range=new_range, inplace=inplace)
+    else:
+        return sigma_contrast_arr(arr, sigma=sigma, new_range=new_range, inplace=inplace)
 
 
 def image_file_to_arr(path):
