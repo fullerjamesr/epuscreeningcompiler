@@ -309,7 +309,15 @@ def populate_session_with_atlas_squares(epu_session, atlas_xml_root):
                                                         rotation=square["rotation"],
                                                         category=square["category"],
                                                         vertices=square["vertices"])
-    epu_session.atlas_image_path = get_atlas_image_path(atlas_xml_root)
+
+
+def populate_session_with_atlas(epu_session):
+    atlas_xml_root = ET.parse(epu_session.atlas_file).getroot()
+    populate_session_with_atlas_squares(epu_session, atlas_xml_root)
+    atlas_image_filename = parse_image_node_to_filename(atlas_xml_root.find(f"./{ATLAS_IMAGE_KEY}"))
+    atlas_image_path = os.path.join(os.path.dirname(epu_session.atlas_file),
+                                    atlas_image_filename)
+    epu_session.atlas_image_path = atlas_image_path
 
 
 def parse_atlas_only_session(atlas_xml_root):

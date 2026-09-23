@@ -185,14 +185,12 @@ def main():
         if args.atlas:
             # path to the atlas is  root/SampleX/Atlas/Atlas.dm where X is autoloader_slot + 1
             atlas_dm = os.path.join(args.atlas, f"Sample{session.autoloader_slot + 1}", "Atlas", "Atlas.dm")
-        else:
-            # path_map should have applied any needed fixes to this during parsing the session
-            atlas_dm = session.atlas_file
-        if not os.path.isfile(atlas_dm):
-            error_die(f"Cannot find Atlas.dm at {atlas_dm}. Use --atlas to point to the atlas session folder, or set "
-                      f"EPU_PATH_MAP to remap the path in the EPU metadata.")
+            session.atlas_file = atlas_dm
+        if not os.path.isfile(session.atlas_file):
+            error_die(f"Cannot find Atlas.dm at {session.atlas_file}. Use --atlas to point to the atlas session folder,"
+                      f"or set EPU_PATH_MAP to remap the path in the EPU metadata.")
         if args.verbose:
-            print(f"  Atlas: {atlas_dm}")
+            print(f"  Atlas: {session.atlas_file}")
+        epu.populate_session_with_atlas(session)
 
-        epu.populate_session_with_atlas_squares(session, ET.parse(atlas_dm).getroot())
         process_session(session, args.output, onlypng=args.onlypng, verbose=args.verbose)
