@@ -8,10 +8,10 @@ import pzdip
 
 
 class DefaultSigmaContrast(Enum):
-    ATLAS = 999.0
-    GRIDSQUARE = 4.5
-    HOLE = 2.0
-    DATA = 1.5
+    ATLAS = 4.0
+    GRIDSQUARE = 4.0
+    HOLE = 5.0
+    DATA = 2.75
     PS = 0.6
 
 
@@ -110,11 +110,11 @@ def image_file_to_arr(path):
         raise ValueError(f"Unrecognized file extension: {path_ext}")
 
 
-def image_file_to_contrasted_arr(path, sigma_contrast, auto_contrast=False):
+def image_file_to_contrasted_arr(path, sigma_contrast, do_auto_contrast=False):
     raw_data = image_file_to_arr(path)
     if isinstance(sigma_contrast, DefaultSigmaContrast):
         sigma_contrast = sigma_contrast.value
-    if auto_contrast:
+    if do_auto_contrast:
         return auto_contrast(raw_data, sigma_contrast=sigma_contrast, new_range=(0,255))
     else:
         return sigma_contrast_arr(raw_data, sigma=sigma_contrast, new_range=(0, 255))
