@@ -70,10 +70,16 @@ def sigma_contrast_arr(data, sigma=3.0, mu=None, std=None, new_range=(0, 1), inp
 def auto_contrast(arr, sigma=3.0, new_range=(0, 1), inplace=False):
     # apply sigma contrast if unimodal, else fit 2 component gmm and sigma contrast based on the brighter component
     if pzdip.zdip(arr, downsample=True).multimodal:
+        flat = arr.ravel()
+        n = flat.size
+        if n > 200_000:
+            rng = np.random.default_rng()
+            flat = rng.choice(flat, size=max(200_000, n // 100), replace=False)
         gmm = GaussianMixture(n_components=2, covariance_type="full")
-        gmm.fit(arr.reshape(-1, 1))
-        mean = gmm.means_.ravel()[1]
-        std = np.sqrt(gmm.covariances_.ravel()[1])
+        gmm.fit(flat.reshape(-1, 1))
+        order = np.argsort(gmm.means_.ravel())
+        mean = gmm.means_.ravel()[order][1]
+        std = np.sqrt(gmm.covariances_.ravel()[order][1])
         return sigma_contrast_arr(arr, sigma=sigma, mu=mean, std=std, new_range=new_range, inplace=inplace)
     else:
         return sigma_contrast_arr(arr, sigma=sigma, new_range=new_range, inplace=inplace)
