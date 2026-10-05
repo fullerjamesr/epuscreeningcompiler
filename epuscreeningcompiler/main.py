@@ -26,13 +26,13 @@ def process_session(session, output_root, onlypng=False, verbose=False):
     if not os.path.isfile(session.atlas_image_path):
         warn(f"  Atlas image not found at {session.atlas_image_path}, skipping atlas images")
     else:
-        atlas_arr = image.image_file_to_contrasted_arr(session.atlas_image_path,
-                                                        image.DefaultSigmaContrast.ATLAS)
-        image.arr_to_png(atlas_arr, os.path.join(session_output, "atlas.png"), scale=False)
+        # for speed, atlases don't need sigma contrasting, so just scale values as-is
+        atlas_arr = image.image_file_to_arr(session.atlas_image_path)
+        image.scale_arr(atlas_arr, inplace=True)
+        image.arr_to_png(atlas_arr, os.path.join(session_output, "atlas.png"))
         if not onlypng:
             shutil.copy2(session.atlas_image_path, session_output)
-
-        atlas_img, atlas_canvas = image.arr_to_drawable_img(atlas_arr, scale=False)
+        atlas_img, atlas_canvas = image.arr_to_drawable_img(atlas_arr)
 
         # Size font to fit the smallest selected gridsquare
         selected_with_geom = [session.gridsquares[x] for x in session.selected_gridsquares
@@ -84,16 +84,15 @@ def process_session(session, output_root, onlypng=False, verbose=False):
             print(f"  GridSquare_{sq.id_str}: {len(sq.holes)} holes")
 
         if os.path.isfile(sq.image_path):
-            gs_arr = image.image_file_to_contrasted_arr(sq.image_path,
-                                                         image.DefaultSigmaContrast.GRIDSQUARE)
-            image.arr_to_png(gs_arr,
-                             os.path.join(gs_output, f"GridSquare_{sq.id_str}.png"),
-                             scale=False)
+            # for speed, gridsquare images also don't need sigma contrasting
+            gs_arr = image.image_file_to_arr(sq.image_path)
+            image.scale_arr(gs_arr, inplace=True)
+            image.arr_to_png(gs_arr, os.path.join(gs_output, f"GridSquare_{sq.id_str}.png"))
             if not onlypng:
                 shutil.copy2(sq.image_path, gs_output)
 
             if sq.holes:
-                gs_img, gs_canvas = image.arr_to_drawable_img(gs_arr, scale=False)
+                gs_img, gs_canvas = image.arr_to_drawable_img(gs_arr)
                 smallest_hole = min(sq.holes.values(), key=lambda h: h.radius)
                 max_hole_label_px = smallest_hole.radius * 3 * epu.GRIDSQUARE_HOLE_DRAWING_SIZE_FUDGE
                 hole_label_font = image.maximize_font_to_fit(
@@ -116,21 +115,21 @@ def process_session(session, output_root, onlypng=False, verbose=False):
                 # image_path may be absolute (after path mapping) or relative to session_dir
                 hole_src = os.path.join(session.session_dir, hole.image_path)
                 if os.path.isfile(hole_src):
-                    image.image_file_to_png(
-                        hole_src,
-                        os.path.join(hole_output, f"FoilHole_{hole.id_str}.png"),
-                        sigma_contrast=image.DefaultSigmaContrast.HOLE)
+                    hole_arr = image.image_file_to_arr(hole_src)
+                    image.auto_contrast_arr(hole_arr, sigma=image.DefaultSigmaContrast.HOLE, inplace=True)
+                    image.arr_to_png(hole_arr,
+                                     os.path.join(hole_output, f"FoilHole_{hole.id_str}.png"))
                     if not onlypng:
                         shutil.copy2(hole_src, hole_output)
 
             for acq_path in hole.acquisitions:
                 acq_src = os.path.join(session.session_dir, acq_path)
                 if os.path.isfile(acq_src):
+                    acq_arr = image.image_file_to_arr(acq_src)
+                    image.auto_contrast_arr(acq_arr, sigma=image.DefaultSigmaContrast.DATA, inplace=True)
                     stem = os.path.splitext(os.path.basename(acq_src))[0]
-                    image.image_file_to_png(
-                        acq_src,
-                        os.path.join(acq_output, f"{stem}.png"),
-                        sigma_contrast=image.DefaultSigmaContrast.DATA)
+                    image.arr_to_png(acq_arr,
+                                     os.path.join(acq_output, f"{stem}.png"))
                     if not onlypng:
                         shutil.copy2(acq_src, acq_output)
 

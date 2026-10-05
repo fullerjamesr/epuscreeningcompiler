@@ -15,12 +15,11 @@ class DefaultSigmaContrast(Enum):
     PS = 0.6
 
 
-def sigma_contrast_arr(data, sigma=3.0, mu=None, std=None, new_range=(0, 1), inplace=False):
+def sigma_contrast_arr(data, sigma=3.0, mu=None, std=None, new_range=(0,255), inplace=False):
     """
-    Apply sigma contrast adjustment to the values in `data`.
-
-    Clips all values in `data` to within ``mean(data) +/- sigma * std(data)`` then linearly scales the results to
-    `new_range`.
+    Clip all values in ``data`` to within ```mu +/- sigma * std``` then linearly scales the results to
+    `new_range`. If `mu` or `std` are not provided, they assume the value of ``np.mean(data)`` or ``np.std(data)``,
+    respectively.
 
     Parameters
     ----------
@@ -41,7 +40,7 @@ def sigma_contrast_arr(data, sigma=3.0, mu=None, std=None, new_range=(0, 1), inp
     Returns
     -------
     numpy.ndarray
-        The contrast-scaled values. This will have the same shape as `data`.
+        The contrast-scaled values. This will have the same shape as ``data``.
     """
     # Promote incoming array to full-precision float b/c Relion's new float16 MRC files were causing overflow in np.std
     # If it's already full precision, numpy is smart enough not to make a copy
@@ -63,12 +62,43 @@ def sigma_contrast_arr(data, sigma=3.0, mu=None, std=None, new_range=(0, 1), inp
             data += b
         else:
             data[:] = np.clip(data_, bottom, top) * slope + b
+        return data
     else:
         return np.clip(data_, bottom, top) * slope + b
 
 
-def auto_contrast(arr, sigma=3.0, new_range=(0, 1), inplace=False):
+def scale_arr(arr, new_range=(0,255), inplace=False):
+    """
+    Re-scale the range of values in the input array to ``new_range``.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+    new_range : tuple of float
+    inplace : bool
+
+    Returns
+    -------
+    np.ndarray
+    """
+    arr_ = np.asarray(arr, dtype=float)
+    slope = (new_range[1] - new_range[0]) / (arr_.max() - arr_.min())
+    b = new_range[0] - slope * arr_.min()
+    if inplace:
+        if arr_ is arr:
+            arr *= slope
+            arr += b
+        else:
+            arr[:] = arr_ * slope + b
+        return arr
+    else:
+        return arr_ * slope + b
+
+
+def auto_contrast_arr(arr, sigma=3.0, new_range=(0,255), inplace=False):
     # apply sigma contrast if unimodal, else fit 2 component gmm and sigma contrast based on the brighter component
+    if isinstance(sigma, DefaultSigmaContrast):
+        sigma = sigma.value
     if pzdip.zdip(arr, downsample=True).multimodal:
         flat = arr.ravel()
         n = flat.size
@@ -105,22 +135,22 @@ def image_file_to_arr(path):
         return np.array(Image.open(path))
     elif path_ext == ".mrc":
         with mrcfile.open(path, permissive=True) as mrc:
-            return mrc.data
+            return mrc.data.copy()
     else:
         raise ValueError(f"Unrecognized file extension: {path_ext}")
 
 
-def image_file_to_contrasted_arr(path, sigma_contrast, do_auto_contrast=False):
+def image_file_to_contrasted_arr(path, sigma_contrast, auto_contrast=False):
     raw_data = image_file_to_arr(path)
     if isinstance(sigma_contrast, DefaultSigmaContrast):
         sigma_contrast = sigma_contrast.value
-    if do_auto_contrast:
-        return auto_contrast(raw_data, sigma_contrast=sigma_contrast, new_range=(0,255))
+    if auto_contrast:
+        return auto_contrast_arr(raw_data, sigma=sigma_contrast, new_range=(0,255))
     else:
-        return sigma_contrast_arr(raw_data, sigma=sigma_contrast, new_range=(0, 255))
+        return sigma_contrast_arr(raw_data, sigma=sigma_contrast, new_range=(0,255))
 
 
-def arr_to_img(data, scale=True):
+def arr_to_img(data):
     """
     Create a greyscale (mode 'L') Pillow Image object from a 2D numpy array.
 
@@ -128,28 +158,23 @@ def arr_to_img(data, scale=True):
     ----------
     data : ndarray
         A 2-D array with pixel values
-    scale : bool
-        Rescale `data` to the range [0,255]?
 
     Returns
     -------
     PIL.Image.Image
         A mode 'L' Pillow Image object based on `data` after applying any requested transformations.
     """
-    # Scale the values, whatever they may be, to [0-255]
-    if scale:
-        data = (data - np.min(data)) / np.ptp(data) * 255
     return Image.fromarray(np.uint8(data), 'L')
 
 
-def arr_to_drawable_img(arr, scale=True):
-    img = arr_to_img(arr, scale=scale).convert(mode="RGB")
+def arr_to_drawable_img(arr):
+    img = arr_to_img(arr).convert(mode="RGB")
     draw = ImageDraw.Draw(img, mode="RGB")
     return img, draw
 
 
-def arr_to_png(arr, output_path, scale=True):
-    arr_to_img(arr, scale=scale).save(output_path, format='png', compress_level=9)
+def arr_to_png(arr, output_path):
+    arr_to_img(arr).save(output_path, format='png', compress_level=9)
 
 
 def image_file_to_png(input_path, output_path, sigma_contrast=None):
