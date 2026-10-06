@@ -22,15 +22,15 @@ def process_session(session, output_root, onlypng=False, verbose=False):
         print(f"Processing session '{session.session_name}'")
 
     # --- Atlas images ---
-    if not os.path.isfile(session.atlas_image_path):
-        warn(f"  Atlas image not found at {session.atlas_image_path}, skipping atlas images")
+    if session.atlas_image is None or not os.path.isfile(session.atlas_image.image_path):
+        warn(f"  Atlas image not found, skipping atlas images")
     else:
         # for speed, atlases don't need sigma contrasting, so just scale values as-is
-        atlas_arr = image.image_file_to_arr(session.atlas_image_path)
+        atlas_arr = image.image_file_to_arr(session.atlas_image.image_path)
         image.scale_arr(atlas_arr, inplace=True)
         image.arr_to_png(atlas_arr, os.path.join(session_output, "atlas.png"))
         if not onlypng:
-            shutil.copy2(session.atlas_image_path, session_output)
+            shutil.copy2(session.atlas_image.image_path, session_output)
         atlas_img, atlas_canvas = image.arr_to_drawable_img(atlas_arr)
 
         # Size font to fit the smallest selected gridsquare

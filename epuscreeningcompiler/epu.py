@@ -104,7 +104,7 @@ class EpuDataSession:
     selected_gridsquares: set
     gridsquares: dict  # dict of id_str => EpuGridSquare
     # ! Below this line requires atlas metadata
-    atlas_image_path: str
+    atlas_image: EpuImage
 
 
 @dataclass
@@ -296,7 +296,7 @@ def parse_epu_session(epu_meta_dir):
                           image_format=image_format,
                           selected_gridsquares=set(selected_gridsquares.keys()),
                           gridsquares=selected_gridsquares,
-                          atlas_image_path="")
+                          atlas_image=None)
 
 
 def get_atlas_image_path(atlas_xml_root):
@@ -363,10 +363,16 @@ def populate_session_with_atlas_squares(epu_session, atlas_xml_root):
 def populate_session_with_atlas(epu_session):
     atlas_xml_root = ET.parse(epu_session.atlas_file).getroot()
     populate_session_with_atlas_squares(epu_session, atlas_xml_root)
-    atlas_image_filename = parse_image_node_to_filename(atlas_xml_root.find(f"./{_Atlas.IMAGE_REF}"))
-    atlas_image_path = os.path.join(os.path.dirname(epu_session.atlas_file),
-                                    atlas_image_filename)
-    epu_session.atlas_image_path = atlas_image_path
+    atlas_dir = os.path.dirname(epu_session.atlas_file)
+    image_ref_node = atlas_xml_root.find(f"./{_Atlas.IMAGE_REF}")
+    base_name = image_ref_node.findtext(f".//{_GridSquare.IMAGE_FILENAME}")
+    fmt = image_ref_node.findtext(f".//{_GridSquare.IMAGE_FORMAT}").lower()
+    atlas_image = EpuImage(image_path=os.path.join(atlas_dir, f"{base_name}.{fmt}"),
+                           metadata_path=os.path.join(atlas_dir, f"{base_name}.xml"),
+                           pixel_size=0.0,
+                           format=ImageFormat(fmt))
+    populate_epuimage(atlas_image)
+    epu_session.atlas_image = atlas_image
 
 
 def parse_atlas_only_session(atlas_xml_root):
@@ -384,6 +390,13 @@ def parse_atlas_only_session(atlas_xml_root):
                                      vertices=square["vertices"])
                    for id, square in atlas_squares.iterrows()}
     atlas_image_path = get_atlas_image_path(atlas_xml_root)
+    atlas_metadata_path = os.path.splitext(atlas_image_path)[0] + ".xml"
+    fmt = os.path.splitext(atlas_image_path)[1].lstrip(".")
+    atlas_image = EpuImage(image_path=atlas_image_path,
+                           metadata_path=atlas_metadata_path,
+                           pixel_size=0.0,
+                           format=ImageFormat(fmt))
+    populate_epuimage(atlas_image)
     atlas_file = map_path(windows_to_posix_path(os.path.join(atlas_xml_root.findtext(f"./{_Atlas.STORAGE}"),
                                                              "Atlas", "Atlas.dm")))
     return EpuDataSession(session_dir="",
@@ -397,7 +410,7 @@ def parse_atlas_only_session(atlas_xml_root):
                           image_format=ImageFormat.MRC,
                           selected_gridsquares=set(),
                           gridsquares=gridsquares,
-                          atlas_image_path=atlas_image_path)
+                          atlas_image=atlas_image)
 
 
 
@@ -425,11 +438,11 @@ if __name__ == '__main__':
                                                     sum(len(x.holes) for x in epu_session.gridsquares.values())))
 
     print("\nFound {:d} gridsquares on the corresponding atlas".format(len(epu_session.gridsquares)))
-    print(f"Stitched atlas is at {epu_session.atlas_image_path}")
+    print(f"Stitched atlas is at {epu_session.atlas_image.image_path}")
 
     import image
     # Atlas image operations
-    atlas_arr = image.image_file_to_contrasted_arr(path=epu_session.atlas_image_path,
+    atlas_arr = image.image_file_to_contrasted_arr(path=epu_session.atlas_image.image_path,
                                                    sigma_contrast=image.DefaultSigmaContrast.ATLAS)
     atlas_img, atlas_canvas = image.arr_to_drawable_img(atlas_arr, scale=False)
     # Plain
