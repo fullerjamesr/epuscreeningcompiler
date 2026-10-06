@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import os.path
 from pathlib import PureWindowsPath
-from enum import Enum, auto
+from enum import Enum
 from dataclasses import dataclass
 
 
@@ -60,6 +60,11 @@ class _Atlas:
     SQUARE_ROTATION = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Datamodel}Rotation"
     SQUARE_CATEGORY = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Persistence}Category"
 
+class _ImageMeta:
+    """XML path within EPU image metadata files"""
+    PIXEL_SIZE = "./{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}SpatialScale/{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}pixelSize/{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}x/{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}numericValue"
+
+
 PATH_MAP = {}  # populated at runtime from EPU_PATH_MAP env var (or set directly for testing)
 
 ATLAS_CATEGORY_COLOR_MAP = {0: (0, 221, 238),    # cyan
@@ -73,9 +78,16 @@ GRIDSQUARE_HOLE_DRAWING_SIZE_FUDGE = 1.4
 
 
 class ImageFormat(Enum):
-    TIFF = auto()
-    MRC = auto()
-    UNKNOWN = auto()
+    TIFF = "tiff"
+    MRC = "mrc"
+
+
+@dataclass
+class EpuImage:
+    image_path: str
+    metadata_path: str
+    pixel_size: float
+    format: ImageFormat
 
 
 @dataclass
@@ -98,7 +110,7 @@ class EpuDataSession:
 @dataclass
 class EpuGridsquare:
     id_str: str
-    image_path: str
+    image: EpuImage
     holes: dict  # dict of id_str => EpuHole
     # ! Below this line requires atlas metadata
     x_pos: float
@@ -114,7 +126,7 @@ class EpuGridsquare:
 @dataclass
 class EpuHole:
     id_str: str
-    image_path: str
+    image: EpuImage
     x_pos: float
     y_pos: float
     radius: float
@@ -145,6 +157,30 @@ def epuxml_node_is_nil(node):
     return node.attrib.get(_EPU.NULL, "false") == "true"
 
 
+def parse_image_node(root, sub_folder):
+    images_folder = root.findtext(f"./{_GridSquare.HOLE_FOLDER}") # almost always "Images-Disc1"
+    image_filename_node = root.find(f"./{_GridSquare.IMAGE}")
+    image_file_ext = image_filename_node.findtext(f".//{_GridSquare.IMAGE_FORMAT}").lower() # "mrc" or "tiff"
+    image_file_name = image_filename_node.findtext(f".//{_GridSquare.IMAGE_FILENAME}")
+    # Actual file paths are images_folder/type_folder/base_file_name with image_file_ext and .xml
+    image_path    = os.path.join(images_folder, sub_folder, f"{image_file_name}.{image_file_ext}")
+    metadata_path = os.path.join(images_folder, sub_folder, f"{image_file_name}.xml")
+
+    # can't read pixel size because the metadata does not tell us the epu session directory path
+    # caller needs to fill in pixel_size later by parsing `metadata_path` xml
+    return EpuImage(image_path=image_path,
+                    metadata_path=metadata_path,
+                    pixel_size=0.00,
+                    format=ImageFormat(image_file_ext))
+
+
+def populate_epuimage(image: EpuImage):
+    xml_root = ET.parse(image.metadata_path).getroot()
+    pixel_size = float(xml_root.findtext(_ImageMeta.PIXEL_SIZE)) * 1e10 # convert to angstroms from meters
+
+    image.pixel_size = pixel_size
+
+
 def parse_image_node_to_filename(root):
     base_file_name = root.findtext(f".//{_GridSquare.IMAGE_FILENAME}")
     image_format = root.findtext(f".//{_GridSquare.IMAGE_FORMAT}").lower()
@@ -159,29 +195,22 @@ def parse_hole_from_gridsquare_meta_node(node):
     y_pos = float(node.findtext(f"./{_GridSquare.HOLE_POS_PREFIX}/{_GridSquare.HOLE_POS_Y}"))
     radius = float(node.findtext(f"./{_GridSquare.HOLE_RADIUS}")) / 2
 
-    image_path = None
+    image = None
     if not epuxml_node_is_nil(node.find(f"./{_GridSquare.IMAGE}")):
-        image_path = os.path.join(node.findtext(f"./{_GridSquare.HOLE_FOLDER}"),
-                                  f"GridSquare_{gridsquare_id_str}",
-                                  "FoilHoles",
-                                  parse_image_node_to_filename(node.find(f"./{_GridSquare.IMAGE}")))
+        image = parse_image_node(node, sub_folder=os.path.join(f"GridSquare_{gridsquare_id_str}", "FoilHoles"))
 
     acquisition_nodes = node.findall(f".//{_GridSquare.HOLE_ACQUISITION_KVP}/{_EPU.KVP_VALUE}")
-    acquisitions = [os.path.join(x.findtext(f"./{_GridSquare.HOLE_FOLDER}"),
-                                 f"GridSquare_{gridsquare_id_str}",
-                                 "Data",
-                                 parse_image_node_to_filename(x.find(f"./{_GridSquare.IMAGE}")))
+    acquisitions = [parse_image_node(x, sub_folder=os.path.join(f"GridSquare_{gridsquare_id_str}",
+                                                                "Data"))
                     for x in acquisition_nodes]
 
-    return EpuHole(id_str=hole_id_str, image_path=image_path, x_pos=x_pos, y_pos=y_pos, radius=radius,
+    return EpuHole(id_str=hole_id_str, image=image, x_pos=x_pos, y_pos=y_pos, radius=radius,
                    acquisitions=acquisitions)
 
 
 def parse_session_gridsquare_meta(xml_root):
     id_str = xml_root.findtext(f"./{_EPU.ID}")
-    image_path = os.path.join(xml_root.findtext(f"./{_GridSquare.HOLE_FOLDER}"),
-                              f"GridSquare_{id_str}",
-                              parse_image_node_to_filename(xml_root.find(f"./{_GridSquare.IMAGE}")))
+    image = parse_image_node(xml_root, sub_folder=f"GridSquare_{id_str}")
 
     holes_xml_nodes = xml_root.findall(f".//{_GridSquare.HOLES}")
     selected_hole_xml_nodes = [x for x in holes_xml_nodes if x.findtext(f"./{_EPU.SELECTED}") == 'true']
@@ -190,7 +219,7 @@ def parse_session_gridsquare_meta(xml_root):
              for x in selected_hole_xml_nodes}
 
     # Use empty/null/0 values for properties that should be parsed from the atlas metadata
-    return EpuGridsquare(id_str=id_str, image_path=image_path, holes=holes,
+    return EpuGridsquare(id_str=id_str, image=image, holes=holes,
                          x_pos=0.0, y_pos=0.0, height=0.0, width=0.0, radius=0.0, rotation=0.0,
                          category=-1, vertices=[])
 
@@ -240,6 +269,21 @@ def parse_epu_session(epu_meta_dir):
 
         gridsquare = parse_session_gridsquare_meta(gs_xml_root)
         selected_gridsquares[gridsquare.id_str] = gridsquare
+
+        # add `epu_meta_dir` to the front of all parsed paths
+        # which then allows us t populate EpuImage fields
+        gridsquare.image.image_path = os.path.join(epu_meta_dir, gridsquare.image.image_path)
+        gridsquare.image.metadata_path = os.path.join(epu_meta_dir, gridsquare.image.metadata_path)
+        populate_epuimage(gridsquare.image)
+        for hole in gridsquare.holes.values():
+            if hole.image is not None:
+                hole.image.image_path = os.path.join(epu_meta_dir, hole.image.image_path)
+                hole.image.metadata_path = os.path.join(epu_meta_dir, hole.image.metadata_path)
+                populate_epuimage(hole.image)
+            for data in hole.acquisitions:
+                data.image_path = os.path.join(epu_meta_dir, data.image_path)
+                data.metadata_path = os.path.join(epu_meta_dir, data.metadata_path)
+                populate_epuimage(data)
 
     return EpuDataSession(session_dir=epu_meta_dir,
                           session_file=epu_meta_path,
@@ -304,7 +348,7 @@ def populate_session_with_atlas_squares(epu_session, atlas_xml_root):
             this_square.vertices = square["vertices"]
         else:
             epu_session.gridsquares[id] = EpuGridsquare(id_str=id,
-                                                        image_path="",
+                                                        image=None,
                                                         holes={},
                                                         x_pos=square["x"],
                                                         y_pos=square["y"],
@@ -328,7 +372,7 @@ def populate_session_with_atlas(epu_session):
 def parse_atlas_only_session(atlas_xml_root):
     atlas_squares = parse_gridsquare_data_from_atlas(atlas_xml_root)
     gridsquares = {id: EpuGridsquare(id_str=id,
-                                     image_path="",
+                                     image=None,
                                      holes={},
                                      x_pos=square["x"],
                                      y_pos=square["y"],

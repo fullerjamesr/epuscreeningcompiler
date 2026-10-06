@@ -45,12 +45,12 @@ def generate_gridsquare_html(session, square, gs_output):
     holes = []
     for hole in square.holes.values():
         data_pngs = [
-            f"Data/{os.path.splitext(os.path.basename(p))[0]}.png"
-            for p in hole.acquisitions
+            f"Data/{os.path.splitext(os.path.basename(acq.image_path))[0]}.png"
+            for acq in hole.acquisitions
         ]
         foilhole_png = (
             f"FoilHoles/FoilHole_{hole.id_str}.png"
-            if hole.image_path is not None else None
+            if hole.image is not None else None
         )
         holes.append({
             "id_str": hole.id_str,

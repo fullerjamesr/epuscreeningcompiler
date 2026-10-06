@@ -1,7 +1,6 @@
 import os
 import shutil
 import sys
-import xml.etree.ElementTree as ET
 from . import image, epu, html_output
 
 FONT_PATH = os.path.join(os.path.dirname(__file__), "fonts", "DejaVuSans.ttf")
@@ -83,14 +82,13 @@ def process_session(session, output_root, onlypng=False, verbose=False):
         if verbose:
             print(f"  GridSquare_{sq.id_str}: {len(sq.holes)} holes")
 
-        square_src = os.path.join(session.session_dir, sq.image_path)
-        if os.path.isfile(square_src):
+        if os.path.isfile(sq.image.image_path):
             # for speed, gridsquare images also don't need sigma contrasting
-            gs_arr = image.image_file_to_arr(square_src)
+            gs_arr = image.image_file_to_arr(sq.image.image_path)
             image.scale_arr(gs_arr, inplace=True)
             image.arr_to_png(gs_arr, os.path.join(gs_output, f"GridSquare_{sq.id_str}.png"))
             if not onlypng:
-                shutil.copy2(square_src, gs_output)
+                shutil.copy2(sq.image.image_path, gs_output)
 
             if sq.holes:
                 gs_img, gs_canvas = image.arr_to_drawable_img(gs_arr)
@@ -109,12 +107,11 @@ def process_session(session, output_root, onlypng=False, verbose=False):
                             format='png', compress_level=9)
         else:
             if verbose:
-                warn(f"  GridSquare_{sq.id_str}: image not found at {square_src!r}")
+                warn(f"  GridSquare_{sq.id_str}: image not found at {sq.image.image_path!r}")
 
         for hole in sq.holes.values():
-            if hole.image_path is not None:
-                # image_path may be absolute (after path mapping) or relative to session_dir
-                hole_src = os.path.join(session.session_dir, hole.image_path)
+            if hole.image is not None:
+                hole_src = hole.image.image_path
                 if os.path.isfile(hole_src):
                     hole_arr = image.image_file_to_arr(hole_src)
                     image.auto_contrast_arr(hole_arr, sigma=image.DefaultSigmaContrast.HOLE, inplace=True)
@@ -123,8 +120,8 @@ def process_session(session, output_root, onlypng=False, verbose=False):
                     if not onlypng:
                         shutil.copy2(hole_src, hole_output)
 
-            for acq_path in hole.acquisitions:
-                acq_src = os.path.join(session.session_dir, acq_path)
+            for acq in hole.acquisitions:
+                acq_src = acq.image_path
                 if os.path.isfile(acq_src):
                     acq_arr = image.image_file_to_arr(acq_src)
                     image.auto_contrast_arr(acq_arr, sigma=image.DefaultSigmaContrast.DATA, inplace=True)
