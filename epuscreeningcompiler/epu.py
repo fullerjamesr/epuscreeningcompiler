@@ -7,54 +7,58 @@ from enum import Enum, auto
 from dataclasses import dataclass
 
 
-EPU_XML_NULL_KEY = "{http://www.w3.org/2001/XMLSchema-instance}nil"
-EPU_XML_KEYVALUEPAIR_KEY = "{http://schemas.datacontract.org/2004/07/System.Collections.Generic}key"
-EPU_XML_KEYVALUEPAIR_VALUE = "{http://schemas.datacontract.org/2004/07/System.Collections.Generic}value"
-EPU_XML_SELECTED_KEY = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}Selected"
-EPU_XML_ID_KEY = "{http://schemas.datacontract.org/2004/07/Fei.Applications.Common.Types}Id"
+class _EPU:
+    """Cross-document XML keys shared across all EPU file types."""
+    NULL        = "{http://www.w3.org/2001/XMLSchema-instance}nil"
+    KVP_KEY     = "{http://schemas.datacontract.org/2004/07/System.Collections.Generic}key"
+    KVP_VALUE   = "{http://schemas.datacontract.org/2004/07/System.Collections.Generic}value"
+    SELECTED    = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}Selected"
+    ID          = "{http://schemas.datacontract.org/2004/07/Fei.Applications.Common.Types}Id"
 
-EPU_SESSION_NAME_KEY = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}Name"
-EPU_GRID_NAME_KEY = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}AutoloaderDescription"
-EPU_GRID_SLOT_KEY = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}AutoloaderSlot"
-EPU_IMAGE_FORMAT_KEY = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}ImageFileFormat"
-EPU_MOVIE_FORMAT_KEY = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}DoseFractionsOutputFormat"
-EPU_SAMPLE_PREFIX = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}Samples/{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}_items/{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}SampleXml"
-EPU_SAMPLE_ATLAS_KEY = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}AtlasId"
-EPU_SAMPLE_OPTICS_PRESETS = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}MicroscopeSettings/KeyValuePairs/{http://schemas.datacontract.org/2004/07/System.Collections.Generic}KeyValuePairOfExperimentSettingsIdMicroscopeSettingsCG2rZ1D8"
-EPU_SAMPLE_OPTICS_PRESET_CAMERA_SETTINGS = "{http://schemas.datacontract.org/2004/07/Fei.Applications.Common.Services}Acquisition/{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}camera/{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}CameraSpecificInput/KeyValuePairs/{http://schemas.datacontract.org/2004/07/System.Collections.Generic}KeyValuePairOfstringanyType"
-EPU_SAMPLE_GRIDSQUARES = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}GridSquares/{http://schemas.microsoft.com/2003/10/Serialization/Arrays}m_serializationArray/{http://schemas.datacontract.org/2004/07/System.Collections.Generic}KeyValuePairOfintSerializedReferenceOfGridSquareXml_PsqDC3X0m6koiAE_P"
-EPU_SAMPLE_GRIDSQUARE_FILENAME_KEY = "{http://schemas.datacontract.org/2004/07/Fei.Applications.Common.Types}FileName"
 
-GRIDSQUARE_IMAGE_PATH_KEY = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}GridSquareImagePath"
+class _Session:
+    """XML paths for EpuSession.dm and its per-GridSquare .dm sidecar files."""
+    NAME                = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}Name"
+    GRID_NAME           = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}AutoloaderDescription"
+    GRID_SLOT           = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}AutoloaderSlot"
+    IMAGE_FORMAT        = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}ImageFileFormat"
+    MOVIE_FORMAT        = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}DoseFractionsOutputFormat"
+    SAMPLE              = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}Samples/{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}_items/{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}SampleXml"
+    SAMPLE_ATLAS_ID     = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}AtlasId"
+    SAMPLE_OPTICS_PRESETS   = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}MicroscopeSettings/KeyValuePairs/{http://schemas.datacontract.org/2004/07/System.Collections.Generic}KeyValuePairOfExperimentSettingsIdMicroscopeSettingsCG2rZ1D8"
+    SAMPLE_CAMERA_SETTINGS  = "{http://schemas.datacontract.org/2004/07/Fei.Applications.Common.Services}Acquisition/{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}camera/{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}CameraSpecificInput/KeyValuePairs/{http://schemas.datacontract.org/2004/07/System.Collections.Generic}KeyValuePairOfstringanyType"
+    SAMPLE_GRIDSQUARES      = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}GridSquares/{http://schemas.microsoft.com/2003/10/Serialization/Arrays}m_serializationArray/{http://schemas.datacontract.org/2004/07/System.Collections.Generic}KeyValuePairOfintSerializedReferenceOfGridSquareXml_PsqDC3X0m6koiAE_P"
+    GRIDSQUARE_FILENAME     = "{http://schemas.datacontract.org/2004/07/Fei.Applications.Common.Types}FileName"
 
-GRIDSQUARE_HOLES_SEARCH = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}TargetLocationsEfficient/{http://schemas.microsoft.com/2003/10/Serialization/Arrays}m_serializationArray/{http://schemas.datacontract.org/2004/07/System.Collections.Generic}KeyValuePairOfintTargetLocationXmlBpEWF4JT/{http://schemas.datacontract.org/2004/07/System.Collections.Generic}value"
-GRIDSQUARE_HOLES_POS_PREFIX = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}PixelCenter"
-GRIDSQUARE_HOLES_POS_X = "{http://schemas.datacontract.org/2004/07/System.Drawing}x"
-GRIDSQUARE_HOLES_POS_Y = "{http://schemas.datacontract.org/2004/07/System.Drawing}y"
-GRIDSQAURE_HOLES_RADIUS = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}PixelWidthHeight/{http://schemas.datacontract.org/2004/07/System.Drawing}height"
-GRIDSQUARE_HOLES_FOLDER = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}ImageFolderName"
 
-HOLE_ACQUISITION_KVP = "{http://schemas.datacontract.org/2004/07/System.Collections.Generic}KeyValuePairOfintParticleAcquisitionDataXmlBpEWF4JT"
+class _GridSquare:
+    """XML paths within per-GridSquare .dm metadata files."""
+    IMAGE_PATH          = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}GridSquareImagePath"
+    HOLES               = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}TargetLocationsEfficient/{http://schemas.microsoft.com/2003/10/Serialization/Arrays}m_serializationArray/{http://schemas.datacontract.org/2004/07/System.Collections.Generic}KeyValuePairOfintTargetLocationXmlBpEWF4JT/{http://schemas.datacontract.org/2004/07/System.Collections.Generic}value"
+    HOLE_POS_PREFIX     = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}PixelCenter"
+    HOLE_POS_X          = "{http://schemas.datacontract.org/2004/07/System.Drawing}x"
+    HOLE_POS_Y          = "{http://schemas.datacontract.org/2004/07/System.Drawing}y"
+    HOLE_RADIUS         = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}PixelWidthHeight/{http://schemas.datacontract.org/2004/07/System.Drawing}height"
+    HOLE_FOLDER         = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}ImageFolderName"
+    HOLE_ACQUISITION_KVP = "{http://schemas.datacontract.org/2004/07/System.Collections.Generic}KeyValuePairOfintParticleAcquisitionDataXmlBpEWF4JT"
+    IMAGE               = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}Image"
+    IMAGE_FILENAME      = "{http://schemas.datacontract.org/2004/07/Fei.Applications.Common.Types}BaseFileName"
+    IMAGE_FORMAT        = "{http://schemas.datacontract.org/2004/07/Fei.Applications.Common.Types}FileFormat"
+    GRIDSQUARE_ID       = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}GridSquareId"
 
-IMAGE_KEY = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}Image"
-IMAGE_FILENAME_KEY = "{http://schemas.datacontract.org/2004/07/Fei.Applications.Common.Types}BaseFileName"
-IMAGE_FORMAT_KEY = "{http://schemas.datacontract.org/2004/07/Fei.Applications.Common.Types}FileFormat"
-IMAGE_GRIDSQUARE_ID_KEY = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}GridSquareId"
 
-ATLAS_SAMPLE_AQC_STATUS = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Persistence.Screening}AtlasAcquisitionStatus"
-ATLAS_SAMPLE_WRITTEN = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Persistence.Screening}AcquiredAtlasAvailable"
-
-ATLAS_STORAGE_KEY = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Persistence}StorageFolder"
-ATLAS_IMAGE_KEY = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Persistence}Atlas/{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Persistence}AtlasImageReference"
-
-ATLAS_SQUARE_XML_SEARCH = ".//{http://schemas.datacontract.org/2004/07/System.Collections.Generic}KeyValuePairOfintNodeXml30oatNZW/{http://schemas.datacontract.org/2004/07/System.Collections.Generic}value"
-ATLAS_SQUARE_POS_PREFIX = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Persistence}PositionOnTheAtlas"
-ATLAS_SQUARE_XPOS_PATH = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Datamodel}Center/{http://schemas.datacontract.org/2004/07/System.Drawing}x"
-ATLAS_SQUARE_YPOS_PATH = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Datamodel}Center/{http://schemas.datacontract.org/2004/07/System.Drawing}y"
-ATLAS_SQUARE_HEIGHT_PATH = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Datamodel}Size/{http://schemas.datacontract.org/2004/07/System.Drawing}height"
-ATLAS_SQUARE_WIDTH_PATH = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Datamodel}Size/{http://schemas.datacontract.org/2004/07/System.Drawing}width"
-ATLAS_SQUARE_ROT_PATH = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Datamodel}Rotation"
-ATLAS_SQUARE_CATEGORY_PATH = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Persistence}Category"
+class _Atlas:
+    """XML paths within Atlas.dm files."""
+    STORAGE         = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Persistence}StorageFolder"
+    IMAGE_REF       = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Persistence}Atlas/{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Persistence}AtlasImageReference"
+    SQUARE_SEARCH   = ".//{http://schemas.datacontract.org/2004/07/System.Collections.Generic}KeyValuePairOfintNodeXml30oatNZW/{http://schemas.datacontract.org/2004/07/System.Collections.Generic}value"
+    SQUARE_POS      = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Persistence}PositionOnTheAtlas"
+    SQUARE_X        = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Datamodel}Center/{http://schemas.datacontract.org/2004/07/System.Drawing}x"
+    SQUARE_Y        = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Datamodel}Center/{http://schemas.datacontract.org/2004/07/System.Drawing}y"
+    SQUARE_HEIGHT   = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Datamodel}Size/{http://schemas.datacontract.org/2004/07/System.Drawing}height"
+    SQUARE_WIDTH    = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Datamodel}Size/{http://schemas.datacontract.org/2004/07/System.Drawing}width"
+    SQUARE_ROTATION = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Datamodel}Rotation"
+    SQUARE_CATEGORY = "{http://schemas.datacontract.org/2004/07/Applications.SciencesAppsShared.GridAtlas.Persistence}Category"
 
 PATH_MAP = {}  # populated at runtime from EPU_PATH_MAP env var (or set directly for testing)
 
@@ -132,42 +136,42 @@ def map_path(path, path_map=None):
 
 def find_epuxml_kvp_value_node(kvp_nodes, search_key):
     for node in kvp_nodes:
-        if node.findtext(f"./{EPU_XML_KEYVALUEPAIR_KEY}") == search_key:
-            return node.find(f"./{EPU_XML_KEYVALUEPAIR_VALUE}")
+        if node.findtext(f"./{_EPU.KVP_KEY}") == search_key:
+            return node.find(f"./{_EPU.KVP_VALUE}")
     return None
 
 
 def epuxml_node_is_nil(node):
-    return node.attrib.get(EPU_XML_NULL_KEY, "false") == "true"
+    return node.attrib.get(_EPU.NULL, "false") == "true"
 
 
 def parse_image_node_to_filename(root):
-    base_file_name = root.findtext(f".//{IMAGE_FILENAME_KEY}")
-    image_format = root.findtext(f".//{IMAGE_FORMAT_KEY}").lower()
+    base_file_name = root.findtext(f".//{_GridSquare.IMAGE_FILENAME}")
+    image_format = root.findtext(f".//{_GridSquare.IMAGE_FORMAT}").lower()
     return f"{base_file_name}.{image_format}"
 
 
 def parse_hole_from_gridsquare_meta_node(node):
-    gridsquare_id_str = node.findtext(f"./{IMAGE_GRIDSQUARE_ID_KEY}")
-    hole_id_str = node.findtext(f"./{EPU_XML_ID_KEY}")
+    gridsquare_id_str = node.findtext(f"./{_GridSquare.GRIDSQUARE_ID}")
+    hole_id_str = node.findtext(f"./{_EPU.ID}")
 
-    x_pos = float(node.findtext(f"./{GRIDSQUARE_HOLES_POS_PREFIX}/{GRIDSQUARE_HOLES_POS_X}"))
-    y_pos = float(node.findtext(f"./{GRIDSQUARE_HOLES_POS_PREFIX}/{GRIDSQUARE_HOLES_POS_Y}"))
-    radius = float(node.findtext(f"./{GRIDSQAURE_HOLES_RADIUS}")) / 2
+    x_pos = float(node.findtext(f"./{_GridSquare.HOLE_POS_PREFIX}/{_GridSquare.HOLE_POS_X}"))
+    y_pos = float(node.findtext(f"./{_GridSquare.HOLE_POS_PREFIX}/{_GridSquare.HOLE_POS_Y}"))
+    radius = float(node.findtext(f"./{_GridSquare.HOLE_RADIUS}")) / 2
 
     image_path = None
-    if not epuxml_node_is_nil(node.find(f"./{IMAGE_KEY}")):
-        folder = map_path(windows_to_posix_path(node.findtext(f"./{GRIDSQUARE_HOLES_FOLDER}")))
+    if not epuxml_node_is_nil(node.find(f"./{_GridSquare.IMAGE}")):
+        folder = map_path(windows_to_posix_path(node.findtext(f"./{_GridSquare.HOLE_FOLDER}")))
         image_path = os.path.join(folder,
                                   f"GridSquare_{gridsquare_id_str}",
                                   "FoilHoles",
-                                  parse_image_node_to_filename(node.find(f"./{IMAGE_KEY}")))
+                                  parse_image_node_to_filename(node.find(f"./{_GridSquare.IMAGE}")))
 
-    acquisition_nodes = node.findall(f".//{HOLE_ACQUISITION_KVP}/{EPU_XML_KEYVALUEPAIR_VALUE}")
-    acquisitions = [os.path.join(map_path(windows_to_posix_path(x.findtext(f"./{GRIDSQUARE_HOLES_FOLDER}"))),
+    acquisition_nodes = node.findall(f".//{_GridSquare.HOLE_ACQUISITION_KVP}/{_EPU.KVP_VALUE}")
+    acquisitions = [os.path.join(map_path(windows_to_posix_path(x.findtext(f"./{_GridSquare.HOLE_FOLDER}"))),
                                  f"GridSquare_{gridsquare_id_str}",
                                  "Data",
-                                 parse_image_node_to_filename(x.find(f"./{IMAGE_KEY}")))
+                                 parse_image_node_to_filename(x.find(f"./{_GridSquare.IMAGE}")))
                     for x in acquisition_nodes]
 
     return EpuHole(id_str=hole_id_str, image_path=image_path, x_pos=x_pos, y_pos=y_pos, radius=radius,
@@ -175,13 +179,13 @@ def parse_hole_from_gridsquare_meta_node(node):
 
 
 def parse_session_gridsquare_meta(xml_root):
-    id_str = xml_root.findtext(f"./{EPU_XML_ID_KEY}")
-    image_path = map_path(windows_to_posix_path(xml_root.findtext(f"./{GRIDSQUARE_IMAGE_PATH_KEY}")))
+    id_str = xml_root.findtext(f"./{_EPU.ID}")
+    image_path = map_path(windows_to_posix_path(xml_root.findtext(f"./{_GridSquare.IMAGE_PATH}")))
 
-    holes_xml_nodes = xml_root.findall(f".//{GRIDSQUARE_HOLES_SEARCH}")
-    selected_hole_xml_nodes = [x for x in holes_xml_nodes if x.findtext(f"./{EPU_XML_SELECTED_KEY}") == 'true']
+    holes_xml_nodes = xml_root.findall(f".//{_GridSquare.HOLES}")
+    selected_hole_xml_nodes = [x for x in holes_xml_nodes if x.findtext(f"./{_EPU.SELECTED}") == 'true']
 
-    holes = {x.findtext(f"./{EPU_XML_ID_KEY}"): parse_hole_from_gridsquare_meta_node(x)
+    holes = {x.findtext(f"./{_EPU.ID}"): parse_hole_from_gridsquare_meta_node(x)
              for x in selected_hole_xml_nodes}
 
     # Use empty/null/0 values for properties that should be parsed from the atlas metadata
@@ -196,39 +200,39 @@ def parse_epu_session(epu_meta_dir):
     xml_tree = ET.parse(epu_meta_path)
     xml_root = xml_tree.getroot()
 
-    session_name = xml_root.findtext(f"./{EPU_SESSION_NAME_KEY}")
-    grid_name = xml_root.findtext(f"./{EPU_GRID_NAME_KEY}")
-    grid_slot = int(xml_root.findtext(f"./{EPU_GRID_SLOT_KEY}"))
+    session_name = xml_root.findtext(f"./{_Session.NAME}")
+    grid_name = xml_root.findtext(f"./{_Session.GRID_NAME}")
+    grid_slot = int(xml_root.findtext(f"./{_Session.GRID_SLOT}"))
 
-    sample_node = xml_root.find(f"./{EPU_SAMPLE_PREFIX}")
+    sample_node = xml_root.find(f"./{_Session.SAMPLE}")
 
-    atlas_file = map_path(windows_to_posix_path(sample_node.findtext(f"./{EPU_SAMPLE_ATLAS_KEY}")))
+    atlas_file = map_path(windows_to_posix_path(sample_node.findtext(f"./{_Session.SAMPLE_ATLAS_ID}")))
 
     has_movies = False
-    epu_optics_preset_nodes = sample_node.findall(f"./{EPU_SAMPLE_OPTICS_PRESETS}")
+    epu_optics_preset_nodes = sample_node.findall(f"./{_Session.SAMPLE_OPTICS_PRESETS}")
     data_acq_preset_node = find_epuxml_kvp_value_node(epu_optics_preset_nodes, "Acquisition")
-    camera_settings_nodes = data_acq_preset_node.findall(f"{EPU_SAMPLE_OPTICS_PRESET_CAMERA_SETTINGS}")
+    camera_settings_nodes = data_acq_preset_node.findall(f"{_Session.SAMPLE_CAMERA_SETTINGS}")
     fractionation_settings_node = find_epuxml_kvp_value_node(camera_settings_nodes, "FractionationSettings")
-    if fractionation_settings_node.attrib.get(EPU_XML_NULL_KEY, "false") != "true":
+    if fractionation_settings_node.attrib.get(_EPU.NULL, "false") != "true":
         has_movies = True
 
-    image_format = ImageFormat[xml_root.findtext(f"./{EPU_IMAGE_FORMAT_KEY}").upper()]
-    movie_format_str = xml_root.findtext(f"./{EPU_MOVIE_FORMAT_KEY}")
+    image_format = ImageFormat[xml_root.findtext(f"./{_Session.IMAGE_FORMAT}").upper()]
+    movie_format_str = xml_root.findtext(f"./{_Session.MOVIE_FORMAT}")
     movie_format = None
     gain_corrected = True
     if has_movies:
         movie_format = ImageFormat.TIFF if "tif" in movie_format_str else ImageFormat.MRC
         gain_corrected = "Non-Gain" not in movie_format_str
 
-    gridsquare_nodes = sample_node.findall(f"./{EPU_SAMPLE_GRIDSQUARES}")
+    gridsquare_nodes = sample_node.findall(f"./{_Session.SAMPLE_GRIDSQUARES}")
     selected_gridsquares = {}
     for gridsquare_node in gridsquare_nodes:
-        gs_meta_path = gridsquare_node.findtext(f"./{EPU_XML_KEYVALUEPAIR_VALUE}/{EPU_SAMPLE_GRIDSQUARE_FILENAME_KEY}")
+        gs_meta_path = gridsquare_node.findtext(f"./{_EPU.KVP_VALUE}/{_Session.GRIDSQUARE_FILENAME}")
         gs_meta_path = os.path.join(os.path.split(epu_meta_path)[0],
                                     windows_to_posix_path(gs_meta_path))
         gs_xml_root = ET.parse(gs_meta_path).getroot()
 
-        selected_str = gs_xml_root.findtext(f"./{EPU_XML_SELECTED_KEY}")
+        selected_str = gs_xml_root.findtext(f"./{_EPU.SELECTED}")
         selected = (selected_str == "true")
         if not selected:
             continue
@@ -251,22 +255,22 @@ def parse_epu_session(epu_meta_dir):
 
 
 def get_atlas_image_path(atlas_xml_root):
-    folder = map_path(windows_to_posix_path(atlas_xml_root.findtext(f"./{ATLAS_STORAGE_KEY}")))
-    filename = parse_image_node_to_filename(atlas_xml_root.find(f"./{ATLAS_IMAGE_KEY}"))
+    folder = map_path(windows_to_posix_path(atlas_xml_root.findtext(f"./{_Atlas.STORAGE}")))
+    filename = parse_image_node_to_filename(atlas_xml_root.find(f"./{_Atlas.IMAGE_REF}"))
     # The actual mrc/tiff file for the atlas is at `folder`/Atlas/`filename`
     return os.path.join(folder, "Atlas", filename)
 
 
 def parse_gridsquare_data_from_atlas(atlas_xml_root):
-    gridsquare_xml_nodes = atlas_xml_root.findall(ATLAS_SQUARE_XML_SEARCH)
-    gridsquare_data = [(x.findtext(f"./{EPU_XML_ID_KEY}").strip(),
-                        float(x.findtext(f"./{ATLAS_SQUARE_POS_PREFIX}/{ATLAS_SQUARE_XPOS_PATH}")),
-                        float(x.findtext(f"./{ATLAS_SQUARE_POS_PREFIX}/{ATLAS_SQUARE_YPOS_PATH}")),
-                        float(x.findtext(f"./{ATLAS_SQUARE_POS_PREFIX}/{ATLAS_SQUARE_HEIGHT_PATH}")),
-                        float(x.findtext(f"./{ATLAS_SQUARE_POS_PREFIX}/{ATLAS_SQUARE_WIDTH_PATH}")),
-                        float(x.findtext(f"./{ATLAS_SQUARE_POS_PREFIX}/{ATLAS_SQUARE_ROT_PATH}")),
-                        int(x.findtext(f"./{ATLAS_SQUARE_CATEGORY_PATH}"))
-                        ) for x in gridsquare_xml_nodes if x.findtext(f"./{ATLAS_SQUARE_CATEGORY_PATH}") != '']
+    gridsquare_xml_nodes = atlas_xml_root.findall(_Atlas.SQUARE_SEARCH)
+    gridsquare_data = [(x.findtext(f"./{_EPU.ID}").strip(),
+                        float(x.findtext(f"./{_Atlas.SQUARE_POS}/{_Atlas.SQUARE_X}")),
+                        float(x.findtext(f"./{_Atlas.SQUARE_POS}/{_Atlas.SQUARE_Y}")),
+                        float(x.findtext(f"./{_Atlas.SQUARE_POS}/{_Atlas.SQUARE_HEIGHT}")),
+                        float(x.findtext(f"./{_Atlas.SQUARE_POS}/{_Atlas.SQUARE_WIDTH}")),
+                        float(x.findtext(f"./{_Atlas.SQUARE_POS}/{_Atlas.SQUARE_ROTATION}")),
+                        int(x.findtext(f"./{_Atlas.SQUARE_CATEGORY}"))
+                        ) for x in gridsquare_xml_nodes if x.findtext(f"./{_Atlas.SQUARE_CATEGORY}") != '']
     columns = ["id", "x", "y", "height", "width", "rotation", "category"]
     gridsquares = pd.DataFrame.from_records(data=gridsquare_data, columns=columns, index="id")
 
@@ -335,7 +339,7 @@ def parse_atlas_only_session(atlas_xml_root):
                                      vertices=square["vertices"])
                    for id, square in atlas_squares.iterrows()}
     atlas_image_path = get_atlas_image_path(atlas_xml_root)
-    atlas_file = map_path(windows_to_posix_path(os.path.join(atlas_xml_root.findtext(f"./{ATLAS_STORAGE_KEY}"),
+    atlas_file = map_path(windows_to_posix_path(os.path.join(atlas_xml_root.findtext(f"./{_Atlas.STORAGE}"),
                                                              "Atlas", "Atlas.dm")))
     return EpuDataSession(session_dir="",
                           session_file="",
