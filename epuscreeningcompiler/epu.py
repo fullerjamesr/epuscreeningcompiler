@@ -161,14 +161,13 @@ def parse_hole_from_gridsquare_meta_node(node):
 
     image_path = None
     if not epuxml_node_is_nil(node.find(f"./{_GridSquare.IMAGE}")):
-        folder = map_path(windows_to_posix_path(node.findtext(f"./{_GridSquare.HOLE_FOLDER}")))
-        image_path = os.path.join(folder,
+        image_path = os.path.join(node.findtext(f"./{_GridSquare.HOLE_FOLDER}"),
                                   f"GridSquare_{gridsquare_id_str}",
                                   "FoilHoles",
                                   parse_image_node_to_filename(node.find(f"./{_GridSquare.IMAGE}")))
 
     acquisition_nodes = node.findall(f".//{_GridSquare.HOLE_ACQUISITION_KVP}/{_EPU.KVP_VALUE}")
-    acquisitions = [os.path.join(map_path(windows_to_posix_path(x.findtext(f"./{_GridSquare.HOLE_FOLDER}"))),
+    acquisitions = [os.path.join(x.findtext(f"./{_GridSquare.HOLE_FOLDER}"),
                                  f"GridSquare_{gridsquare_id_str}",
                                  "Data",
                                  parse_image_node_to_filename(x.find(f"./{_GridSquare.IMAGE}")))
@@ -180,7 +179,9 @@ def parse_hole_from_gridsquare_meta_node(node):
 
 def parse_session_gridsquare_meta(xml_root):
     id_str = xml_root.findtext(f"./{_EPU.ID}")
-    image_path = map_path(windows_to_posix_path(xml_root.findtext(f"./{_GridSquare.IMAGE_PATH}")))
+    image_path = os.path.join(xml_root.findtext(f"./{_GridSquare.HOLE_FOLDER}"),
+                              f"GridSquare_{id_str}",
+                              parse_image_node_to_filename(xml_root.find(f"./{_GridSquare.IMAGE}")))
 
     holes_xml_nodes = xml_root.findall(f".//{_GridSquare.HOLES}")
     selected_hole_xml_nodes = [x for x in holes_xml_nodes if x.findtext(f"./{_EPU.SELECTED}") == 'true']
@@ -228,7 +229,7 @@ def parse_epu_session(epu_meta_dir):
     selected_gridsquares = {}
     for gridsquare_node in gridsquare_nodes:
         gs_meta_path = gridsquare_node.findtext(f"./{_EPU.KVP_VALUE}/{_Session.GRIDSQUARE_FILENAME}")
-        gs_meta_path = os.path.join(os.path.split(epu_meta_path)[0],
+        gs_meta_path = os.path.join(epu_meta_dir,
                                     windows_to_posix_path(gs_meta_path))
         gs_xml_root = ET.parse(gs_meta_path).getroot()
 
@@ -318,7 +319,7 @@ def populate_session_with_atlas_squares(epu_session, atlas_xml_root):
 def populate_session_with_atlas(epu_session):
     atlas_xml_root = ET.parse(epu_session.atlas_file).getroot()
     populate_session_with_atlas_squares(epu_session, atlas_xml_root)
-    atlas_image_filename = parse_image_node_to_filename(atlas_xml_root.find(f"./{ATLAS_IMAGE_KEY}"))
+    atlas_image_filename = parse_image_node_to_filename(atlas_xml_root.find(f"./{_Atlas.IMAGE_REF}"))
     atlas_image_path = os.path.join(os.path.dirname(epu_session.atlas_file),
                                     atlas_image_filename)
     epu_session.atlas_image_path = atlas_image_path

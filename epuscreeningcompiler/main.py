@@ -83,13 +83,14 @@ def process_session(session, output_root, onlypng=False, verbose=False):
         if verbose:
             print(f"  GridSquare_{sq.id_str}: {len(sq.holes)} holes")
 
-        if os.path.isfile(sq.image_path):
+        square_src = os.path.join(session.session_dir, sq.image_path)
+        if os.path.isfile(square_src):
             # for speed, gridsquare images also don't need sigma contrasting
-            gs_arr = image.image_file_to_arr(sq.image_path)
+            gs_arr = image.image_file_to_arr(square_src)
             image.scale_arr(gs_arr, inplace=True)
             image.arr_to_png(gs_arr, os.path.join(gs_output, f"GridSquare_{sq.id_str}.png"))
             if not onlypng:
-                shutil.copy2(sq.image_path, gs_output)
+                shutil.copy2(square_src, gs_output)
 
             if sq.holes:
                 gs_img, gs_canvas = image.arr_to_drawable_img(gs_arr)
@@ -108,7 +109,7 @@ def process_session(session, output_root, onlypng=False, verbose=False):
                             format='png', compress_level=9)
         else:
             if verbose:
-                warn(f"  GridSquare_{sq.id_str}: image not found at {sq.image_path!r}")
+                warn(f"  GridSquare_{sq.id_str}: image not found at {square_src!r}")
 
         for hole in sq.holes.values():
             if hole.image_path is not None:
