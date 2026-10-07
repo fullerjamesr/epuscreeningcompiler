@@ -30,6 +30,7 @@ def generate_session_html(session, session_output):
         session_name=session.session_name,
         atlas_width=atlas_width,
         atlas_height=atlas_height,
+        atlas_pixel_size=session.atlas_image.pixel_size if session.atlas_image is not None else 0.0,
         gridsquares=gridsquares,
     )
     with open(os.path.join(session_output, "index.html"), "w", encoding="utf-8") as f:
@@ -45,11 +46,13 @@ def generate_gridsquare_html(session, square, gs_output):
     holes = []
     for hole in square.holes.values():
         data_pngs = [
-            f"Data/{os.path.splitext(os.path.basename(acq.image_path))[0]}.png"
+            {"path": f"Data/{os.path.splitext(os.path.basename(acq.image_path))[0]}.png",
+             "pixel_size": acq.pixel_size}
             for acq in hole.acquisitions
         ]
         foilhole_png = (
-            f"FoilHoles/FoilHole_{hole.id_str}.png"
+            {"path": f"FoilHoles/FoilHole_{hole.id_str}.png",
+             "pixel_size": hole.image.pixel_size}
             if hole.image is not None else None
         )
         holes.append({
@@ -72,6 +75,7 @@ def generate_gridsquare_html(session, square, gs_output):
         id_str=square.id_str,
         gs_width=gs_width,
         gs_height=gs_height,
+        gs_pixel_size=square.image.pixel_size,
         holes=holes,
         next_link=next_link,
     )

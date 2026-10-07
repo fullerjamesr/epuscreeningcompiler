@@ -70,9 +70,13 @@
     .hole-data { display: none; }
     .hole-data.active { display: block; }
     .hole-data h3 { margin-top: 0; color: #fc8; }
-    .hole-data img {
+    .hole-data .img-wrap img {
       max-width: 100%;
+      max-height: calc(100vh - 8em);
       display: block;
+      margin-bottom: 0;
+    }
+    .hole-data .img-wrap {
       margin-bottom: 1em;
     }
     .hole-data .section-label {
@@ -81,6 +85,46 @@
       letter-spacing: 0.05em;
       color: #888;
       margin: 0.5em 0 0.25em;
+    }
+
+    /* --- scale bars --- */
+    .img-wrap {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+    }
+    .img-wrap.data-img {
+      overflow: hidden;
+      cursor: zoom-in;
+    }
+    .img-wrap.data-img img {
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+    .scalebar {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 6px 10px;
+      border-radius: 3px;
+    }
+    .sb-bar {
+      height: 6px;
+      background: white;
+      border: 1px solid rgba(0, 0, 0, 0.65);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    }
+    .sb-label {
+      color: white;
+      font: bold 20px/1.4 sans-serif;
+      white-space: nowrap;
+      text-shadow: 0 0 3px #000, 0 0 3px #000;
+      margin-top: 2px;
     }
   </style>
 </head>
@@ -91,7 +135,7 @@
 
     <!-- Left: annotated gridsquare image with clickable hole overlay -->
     <div class="gs-col">
-      <div class="gs-wrap">
+      <div class="gs-wrap" data-pixel-size="{{ gs_pixel_size }}">
         <img src="GridSquare_{{ id_str }}_annotated.png" alt="GridSquare {{ id_str }}">
         <svg id="gs-svg"
              viewBox="0 0 {{ gs_width }} {{ gs_height }}"
@@ -104,6 +148,7 @@
           />
           {% endfor %}
         </svg>
+        <div class="scalebar"><div class="sb-bar"></div><span class="sb-label"></span></div>
       </div>
       <div class="gs-nav">
         <a class="back-link" href="../index.html">← Back to atlas</a>
@@ -123,13 +168,19 @@
         {% if hole.data_pngs %}
         <div class="section-label">Data ({{ hole.data_pngs | length }} exposure{{ 's' if hole.data_pngs | length != 1 }})</div>
         {% for p in hole.data_pngs %}
-        <img data-src="{{ p }}" alt="{{ p }}">
+        <div class="img-wrap data-img" data-pixel-size="{{ p.pixel_size }}">
+          <img data-src="{{ p.path }}" alt="{{ p.path }}">
+          <div class="scalebar"><div class="sb-bar"></div><span class="sb-label"></span></div>
+        </div>
         {% endfor %}
         {% endif %}
 
         {% if hole.foilhole_png %}
         <div class="section-label">Foil hole</div>
-        <img data-src="{{ hole.foilhole_png }}" alt="FoilHole {{ hole.id_str }}">
+        <div class="img-wrap" data-pixel-size="{{ hole.foilhole_png.pixel_size }}">
+          <img data-src="{{ hole.foilhole_png.path }}" alt="FoilHole {{ hole.id_str }}">
+          <div class="scalebar"><div class="sb-bar"></div><span class="sb-label"></span></div>
+        </div>
         {% endif %}
       </div>
       {% endfor %}
@@ -138,6 +189,140 @@
   </div>
 
   <script>
+    // --- Scale bar ---
+    function niceScale(target) {
+      var exp = Math.floor(Math.log10(target));
+      var p = Math.pow(10, exp);
+      return [1, 1.5, 2, 2.5, 5, 10].map(function(m) { return m * p; })
+        .reduce(function(a, b) { return Math.abs(b - target) < Math.abs(a - target) ? b : a; });
+    }
+
+    function updateScaleBar(img, bar, label, pixelSizeAng, scale) {
+      scale = scale || 1;
+      if (!img.naturalWidth || !img.clientWidth) return;
+      var angPerPx = pixelSizeAng * img.naturalWidth / img.clientWidth / scale;
+      var ang = niceScale(img.clientWidth * 0.10 * angPerPx);
+      function applyBar(a) {
+        bar.style.width = (a / angPerPx) + 'px';
+        label.textContent = a >= 5000
+          ? Math.round(a / 10) + ' nm'
+          : Math.round(a) + ' Å';
+      }
+      applyBar(ang);
+      if (bar.offsetWidth < label.offsetWidth + 4) {
+        applyBar(niceScale(label.offsetWidth * angPerPx * 1.5));
+      }
+    }
+
+    // --- Zoom + pan (for .data-img wrappers — transform on <img> directly) ---
+    function setupZoom(wrap) {
+      var img   = wrap.querySelector('img');
+      var bar   = wrap.querySelector('.sb-bar');
+      var label = wrap.querySelector('.sb-label');
+      var px    = parseFloat(wrap.dataset.pixelSize);
+      var s = 1, tx = 0, ty = 0;
+      var dragging = false;
+      var dragX = 0, dragY = 0, dragTx = 0, dragTy = 0;
+
+      function clamp() {
+        var w = wrap.clientWidth, h = wrap.clientHeight;
+        tx = Math.min(0, Math.max(tx, w - w * s));
+        ty = Math.min(0, Math.max(ty, h - h * s));
+      }
+
+      function applyTransform() {
+        img.style.transform = s === 1 ? '' : 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
+        wrap.style.cursor = dragging ? 'grabbing' : (s > 1 ? 'grab' : 'zoom-in');
+        updateScaleBar(img, bar, label, px, s);
+      }
+
+      wrap.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        var rect = wrap.getBoundingClientRect();
+        var mx = e.clientX - rect.left;
+        var my = e.clientY - rect.top;
+        var factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+        var ns = Math.max(1, Math.min(10, s * factor));
+        var ratio = ns / s;
+        tx = mx - ratio * (mx - tx);
+        ty = my - ratio * (my - ty);
+        s = ns;
+        clamp();
+        applyTransform();
+      }, { passive: false });
+
+      wrap.addEventListener('mousedown', function(e) {
+        if (s <= 1 || e.button !== 0) return;
+        e.preventDefault();
+        dragging = true;
+        dragX = e.clientX; dragY = e.clientY;
+        dragTx = tx; dragTy = ty;
+        wrap.style.cursor = 'grabbing';
+      });
+
+      wrap.addEventListener('mousemove', function(e) {
+        if (!dragging) return;
+        tx = dragTx + (e.clientX - dragX);
+        ty = dragTy + (e.clientY - dragY);
+        clamp();
+        img.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
+      });
+
+      function endDrag() {
+        if (!dragging) return;
+        dragging = false;
+        wrap.style.cursor = s > 1 ? 'grab' : 'zoom-in';
+      }
+      wrap.addEventListener('mouseup', endDrag);
+      wrap.addEventListener('mouseleave', endDrag);
+
+      wrap.addEventListener('dblclick', function() {
+        s = 1; tx = 0; ty = 0;
+        applyTransform();
+      });
+
+      return function refresh() { updateScaleBar(img, bar, label, px, s); };
+    }
+
+    // --- Set up all scale bars (and zoom for data images) ---
+    function setupScaleBars() {
+      // Gridsquare overview (scale bar only, no zoom)
+      document.querySelectorAll('.gs-wrap[data-pixel-size]').forEach(function(wrap) {
+        var img   = wrap.querySelector('img');
+        var bar   = wrap.querySelector('.sb-bar');
+        var label = wrap.querySelector('.sb-label');
+        var px    = parseFloat(wrap.dataset.pixelSize);
+        function refresh() { updateScaleBar(img, bar, label, px, 1); }
+        img.addEventListener('load', refresh);
+        if (img.complete && img.naturalWidth) refresh();
+        var ro = new ResizeObserver(function() { clearTimeout(ro._t); ro._t = setTimeout(refresh, 50); });
+        ro.observe(wrap);
+      });
+
+      // Hole + data images (scale bar; zoom only for .data-img)
+      document.querySelectorAll('.img-wrap[data-pixel-size]').forEach(function(wrap) {
+        var img   = wrap.querySelector('img');
+        var bar   = wrap.querySelector('.sb-bar');
+        var label = wrap.querySelector('.sb-label');
+        var px    = parseFloat(wrap.dataset.pixelSize);
+        var refresh;
+
+        if (wrap.classList.contains('data-img')) {
+          refresh = setupZoom(wrap);
+        } else {
+          refresh = function() { updateScaleBar(img, bar, label, px, 1); };
+        }
+
+        img.addEventListener('load', refresh);
+        if (img.complete && img.naturalWidth) refresh();
+        var ro = new ResizeObserver(function() { clearTimeout(ro._t); ro._t = setTimeout(refresh, 50); });
+        ro.observe(wrap);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', setupScaleBars);
+
+    // --- Hole selection & lazy loading ---
     var circles = document.querySelectorAll('#gs-svg circle');
     var prompt  = document.getElementById('prompt');
 
@@ -145,20 +330,15 @@
       circle.addEventListener('click', function() {
         var holeId = this.dataset.holeId;
 
-        // Deselect all
         circles.forEach(function(c) { c.classList.remove('selected'); });
-        document.querySelectorAll('.hole-data').forEach(function(d) {
-          d.classList.remove('active');
-        });
+        document.querySelectorAll('.hole-data').forEach(function(d) { d.classList.remove('active'); });
 
-        // Select clicked
         this.classList.add('selected');
         prompt.style.display = 'none';
 
         var panel = document.getElementById('hole-' + holeId);
         if (panel) {
           panel.classList.add('active');
-          // Lazy-load: set src from data-src the first time this panel is shown
           panel.querySelectorAll('img[data-src]').forEach(function(img) {
             if (!img.src || img.src === window.location.href) {
               img.src = img.dataset.src;

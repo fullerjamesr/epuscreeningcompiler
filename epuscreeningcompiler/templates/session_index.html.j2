@@ -22,10 +22,18 @@
     .atlas-wrap {
       position: relative;
       display: inline-block;
-      line-height: 0;   /* remove gap below img */
+      overflow: hidden;
+      cursor: zoom-in;
+    }
+    .zoom-inner {
+      position: relative;
+      line-height: 0;
+      transform-origin: 0 0;
+      will-change: transform;
     }
     .atlas-wrap img {
       max-width: 100%;
+      max-height: calc(100vh - 8em);
       display: block;
     }
     .atlas-wrap svg {
@@ -44,6 +52,33 @@
       stroke: rgba(255, 255, 100, 0.7);
       stroke-width: 4;
     }
+
+    /* --- scale bar --- */
+    .scalebar {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 6px 10px;
+      border-radius: 3px;
+    }
+    .sb-bar {
+      height: 6px;
+      background: white;
+      border: 1px solid rgba(0, 0, 0, 0.65);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    }
+    .sb-label {
+      color: white;
+      font: bold 20px/1.4 sans-serif;
+      white-space: nowrap;
+      text-shadow: 0 0 3px #000, 0 0 3px #000;
+      margin-top: 2px;
+    }
   </style>
 </head>
 <body>
@@ -61,23 +96,135 @@
     </label>
   </div>
 
-  <div class="atlas-wrap">
-    <img id="atlas-img" src="atlas_selected.png" alt="Atlas">
-    <svg id="atlas-svg"
-         viewBox="0 0 {{ atlas_width }} {{ atlas_height }}"
-         xmlns="http://www.w3.org/2000/svg">
-      {% for gs in gridsquares %}
-      <polygon
-        data-href="{{ gs.link }}"
-        points="{{ gs.vertices_str }}"
-        title="GridSquare {{ gs.id_str }}"
-      />
-      {% endfor %}
-    </svg>
+  <div class="atlas-wrap" data-pixel-size="{{ atlas_pixel_size }}">
+    <div class="zoom-inner">
+      <img id="atlas-img" src="atlas_selected.png" alt="Atlas">
+      <svg id="atlas-svg"
+           viewBox="0 0 {{ atlas_width }} {{ atlas_height }}"
+           xmlns="http://www.w3.org/2000/svg">
+        {% for gs in gridsquares %}
+        <polygon
+          data-href="{{ gs.link }}"
+          points="{{ gs.vertices_str }}"
+          title="GridSquare {{ gs.id_str }}"
+        />
+        {% endfor %}
+      </svg>
+    </div>
+    <div class="scalebar"><div class="sb-bar"></div><span class="sb-label"></span></div>
   </div>
 
   <script>
-    // Radio toggle: swap atlas image and show/hide clickable overlay
+    // --- Scale bar ---
+    function niceScale(target) {
+      var exp = Math.floor(Math.log10(target));
+      var p = Math.pow(10, exp);
+      return [1, 1.5, 2, 2.5, 5, 10].map(function(m) { return m * p; })
+        .reduce(function(a, b) { return Math.abs(b - target) < Math.abs(a - target) ? b : a; });
+    }
+
+    function updateScaleBar(img, bar, label, pixelSizeAng, scale) {
+      scale = scale || 1;
+      if (!img.naturalWidth || !img.clientWidth) return;
+      var angPerPx = pixelSizeAng * img.naturalWidth / img.clientWidth / scale;
+      var ang = niceScale(img.clientWidth * 0.10 * angPerPx);
+      function applyBar(a) {
+        bar.style.width = (a / angPerPx) + 'px';
+        label.textContent = a >= 5000
+          ? Math.round(a / 10) + ' nm'
+          : Math.round(a) + ' Å';
+      }
+      applyBar(ang);
+      if (bar.offsetWidth < label.offsetWidth + 4) {
+        applyBar(niceScale(label.offsetWidth * angPerPx * 1.5));
+      }
+    }
+
+    // --- Atlas zoom + pan ---
+    var atlasJustPanned = false;
+
+    (function() {
+      var wrap      = document.querySelector('.atlas-wrap');
+      var inner     = wrap.querySelector('.zoom-inner');
+      var img       = document.getElementById('atlas-img');
+      var bar       = wrap.querySelector('.sb-bar');
+      var label     = wrap.querySelector('.sb-label');
+      var px        = parseFloat(wrap.dataset.pixelSize);
+      var s = 1, tx = 0, ty = 0;
+      var dragging  = false, hasMoved = false;
+      var dragX = 0, dragY = 0, dragTx = 0, dragTy = 0;
+
+      function clamp() {
+        var w = wrap.clientWidth, h = wrap.clientHeight;
+        tx = Math.min(0, Math.max(tx, w - w * s));
+        ty = Math.min(0, Math.max(ty, h - h * s));
+      }
+
+      function applyTransform() {
+        inner.style.transform = s === 1 ? '' : 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
+        wrap.style.cursor = dragging ? 'grabbing' : (s > 1 ? 'grab' : 'zoom-in');
+        updateScaleBar(img, bar, label, px, s);
+      }
+
+      function refresh() { updateScaleBar(img, bar, label, px, s); }
+      img.addEventListener('load', refresh);
+      if (img.complete && img.naturalWidth) refresh();
+
+      var ro = new ResizeObserver(function() {
+        clearTimeout(ro._t);
+        ro._t = setTimeout(refresh, 50);
+      });
+      ro.observe(wrap);
+
+      wrap.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        var rect = wrap.getBoundingClientRect();
+        var mx = e.clientX - rect.left;
+        var my = e.clientY - rect.top;
+        var factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+        var ns = Math.max(1, Math.min(10, s * factor));
+        var ratio = ns / s;
+        tx = mx - ratio * (mx - tx);
+        ty = my - ratio * (my - ty);
+        s = ns;
+        clamp();
+        applyTransform();
+      }, { passive: false });
+
+      wrap.addEventListener('mousedown', function(e) {
+        if (s <= 1 || e.button !== 0) return;
+        e.preventDefault();
+        dragging = true; hasMoved = false;
+        dragX = e.clientX; dragY = e.clientY;
+        dragTx = tx; dragTy = ty;
+        wrap.style.cursor = 'grabbing';
+      });
+
+      wrap.addEventListener('mousemove', function(e) {
+        if (!dragging) return;
+        tx = dragTx + (e.clientX - dragX);
+        ty = dragTy + (e.clientY - dragY);
+        clamp();
+        hasMoved = true;
+        inner.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
+      });
+
+      function endDrag() {
+        if (!dragging) return;
+        dragging = false;
+        if (hasMoved) atlasJustPanned = true;
+        wrap.style.cursor = s > 1 ? 'grab' : 'zoom-in';
+      }
+      wrap.addEventListener('mouseup', endDrag);
+      wrap.addEventListener('mouseleave', endDrag);
+
+      wrap.addEventListener('dblclick', function() {
+        s = 1; tx = 0; ty = 0;
+        applyTransform();
+      });
+    })();
+
+    // --- Radio toggle ---
     document.querySelectorAll('input[name="atlas-view"]').forEach(function(radio) {
       radio.addEventListener('change', function() {
         var img = document.getElementById('atlas-img');
@@ -92,9 +239,10 @@
       });
     });
 
-    // Click a gridsquare polygon → navigate to its index.html
+    // Click a gridsquare polygon → navigate (suppressed if user just panned)
     document.querySelectorAll('#atlas-svg polygon').forEach(function(poly) {
       poly.addEventListener('click', function() {
+        if (atlasJustPanned) { atlasJustPanned = false; return; }
         window.location.href = this.dataset.href;
       });
     });
