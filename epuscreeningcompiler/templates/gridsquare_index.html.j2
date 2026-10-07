@@ -204,9 +204,11 @@
       var ang = niceScale(img.clientWidth * 0.10 * angPerPx);
       function applyBar(a) {
         bar.style.width = (a / angPerPx) + 'px';
-        label.textContent = a >= 5000
-          ? Math.round(a / 10) + ' nm'
-          : Math.round(a) + ' Å';
+        label.textContent = a >= 100000
+          ? Math.round(a / 10000) + ' µm'
+          : a >= 5000
+            ? Math.round(a / 10) + ' nm'
+            : Math.round(a) + ' Å';
       }
       applyBar(ang);
       if (bar.offsetWidth < label.offsetWidth + 4) {
