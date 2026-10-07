@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "epuscreeningcompiler"
+version = "0.0.1"
+description = "A tool to convert fast-screening EPU data collections into a useful collection of files"
+license = { text = "AGPL-3.0" }
+authors = [{ name = "James Fuller", email = "fullerjamesr@gmail.com" }]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+    "Pillow",
+    "mrcfile",
+    "scikit-learn",
+    "jinja2",
+    "pandas",
+    "pzdip @ git+https://github.com/fullerjamesr/pzdip.git",
+]
+
+[project.scripts]
+epuscreeningcompiler = "epuscreeningcompiler.main:main"
+
+[project.urls]
+Source = "https://github.com/fullerjamesr/pzdip"
+
+[tool.setuptools.packages.find]
+include = ["epuscreeningcompiler*"]
+
+[tool.setuptools.package-data]
+epuscreeningcompiler = ["fonts/*.ttf", "templates/*.j2"]
