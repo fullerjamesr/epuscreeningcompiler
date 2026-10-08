@@ -227,6 +227,43 @@ def draw_hole(canvas, coord, radius, color="red", linewidth=10,
                     text=str(label))
 
 
+def horizontal_chord_through_center(vertices):
+    """Length of the horizontal line through the center of a convex polygon, cut off at its edges.
+
+    `vertices` is a sequence of (x, y) points given in order around the polygon (intended as EPU's arbitrarily rotated
+    rectangles). The list must be in order! This is inherent to how we calculate the gridsquare vertices in
+    epu.py::parse_gridsquare_data_from_atlas(). The center is taken as the mean of the vertices Y coords. A horizontal
+    line through the center is intersected with each edge, and the chord length is the max - min of the x-coordinates of
+    those intersections.
+
+    Raises ValueError if there are fewer than 3 vertices or the center line crosses fewer than two edges,
+    which cannot happen for a valid polygon.
+    """
+    # this shouldn't be a problem unless the EPU metadata was parsed wrong or corrupted
+    # as far as I know all squares in EPU are still treated as rectangles. even hexaufoils.
+    n = len(vertices)
+    if n < 3:
+        raise ValueError(f"Need at least 3 vertices to define a polygon, got {n}")
+
+    TOL = 1e-9
+    cy = sum(y for _, y in vertices) / n # cy is the "height" of the square center
+    xs = []
+    for i in range(n):
+        x1, y1 = vertices[i]
+        x2, y2 = vertices[(i + 1) % n]
+        if abs(y2 - y1) < TOL:
+            continue
+        t = (cy - y1) / (y2 - y1)
+        if -TOL <= t <= 1.0 + TOL:
+            xs.append(x1 + t * (x2 - x1))
+
+    # unknown if EPU would ever write a "square" with nearly zero height or width but better safe than sorry
+    # this also might suggest corrupted or mis-parsed EPU files
+    if len(xs) < 2:
+        raise ValueError(f"Horizontal line through center intersects fewer than 2 edges of {vertices}")
+    return max(xs) - min(xs)
+
+
 def maximize_font_to_fit(canvas, font_path, text, max_text_length, min_font_size):
     max_font_size = min_font_size
     font = ImageFont.truetype(font_path, size=max_font_size)

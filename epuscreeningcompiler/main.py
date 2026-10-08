@@ -37,8 +37,8 @@ def process_session(session, output_root, onlypng=False, verbose=False):
         selected_with_geom = [session.gridsquares[x] for x in session.selected_gridsquares
                                if x in session.gridsquares and session.gridsquares[x].vertices]
         if selected_with_geom:
-            smallest_r = min(g.radius for g in selected_with_geom)
-            max_label_px = smallest_r * epu.ATLAS_SQUARE_DRAWING_SIZE_FUDGE
+            max_label_px = min(image.horizontal_chord_through_center(g.vertices)
+                               for g in selected_with_geom)
             gs_label_font = image.maximize_font_to_fit(
                 canvas=atlas_canvas, font_path=FONT_PATH,
                 text=next(iter(session.gridsquares.values())).id_str,
