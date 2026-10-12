@@ -22,8 +22,12 @@ def process_session(session, output_root, onlypng=False, verbose=False):
         print(f"Processing session '{session.session_name}'")
 
     # --- Atlas images ---
-    if session.atlas_image is None or not os.path.isfile(session.atlas_image.image_path):
-        warn(f"  Atlas image not found, skipping atlas images")
+    # GridSquare HTML pages need to know if there is an atlas page to link back to
+    atlas_written = False
+    if session.atlas_image is None:
+        pass  # no atlas metadata was available (outer scope like main() should have already warned)
+    elif not os.path.isfile(session.atlas_image.image_path):
+        warn(f"  Atlas image not found at {session.atlas_image.image_path}, no atlas output will be generated")
     else:
         # for speed, atlases don't need sigma contrasting, so just scale values as-is
         atlas_arr = image.image_file_to_arr(session.atlas_image.image_path)
@@ -66,6 +70,7 @@ def process_session(session, output_root, onlypng=False, verbose=False):
                                   color=epu.ATLAS_CATEGORY_COLOR_MAP.get(sq.category, "red"))
         atlas_img.save(os.path.join(session_output, "atlas_categories.png"),
                        format='png', compress_level=9)
+        atlas_written = True
 
     # --- Per-gridsquare images ---
     for sel_id in session.selected_gridsquares:
@@ -131,9 +136,10 @@ def process_session(session, output_root, onlypng=False, verbose=False):
                     if not onlypng:
                         shutil.copy2(acq_src, acq_output)
 
-        html_output.generate_gridsquare_html(session, sq, gs_output)
+        html_output.generate_gridsquare_html(session, sq, gs_output, has_atlas=atlas_written)
 
-    html_output.generate_session_html(session, session_output)
+    if atlas_written:
+        html_output.generate_session_html(session, session_output)
 
 
 def main():
@@ -183,11 +189,13 @@ def main():
             # path to the atlas is  root/SampleX/Atlas/Atlas.dm where X is autoloader_slot + 1
             atlas_dm = os.path.join(args.atlas, f"Sample{session.autoloader_slot + 1}", "Atlas", "Atlas.dm")
             session.atlas_file = atlas_dm
-        if not os.path.isfile(session.atlas_file):
-            error_die(f"Cannot find Atlas.dm at {session.atlas_file}. Use --atlas to point to the atlas session folder,"
-                      f"or set EPU_PATH_MAP to remap the path in the EPU metadata.")
-        if args.verbose:
-            print(f"  Atlas: {session.atlas_file}")
-        epu.populate_session_with_atlas(session)
+        if os.path.isfile(session.atlas_file):
+            if args.verbose:
+                print(f"  Atlas: {session.atlas_file}")
+            epu.populate_session_with_atlas(session)
+        else:
+            warn(f"{session_dir}: cannot find Atlas.dm at {session.atlas_file}. Continuing without atlas "
+                 f"information: no atlas page will be written. Use --atlas to point to the atlas session "
+                 f"folder, or set EPU_PATH_MAP to remap the path in the EPU metadata.")
 
         process_session(session, args.output, onlypng=args.onlypng, verbose=args.verbose)
