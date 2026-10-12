@@ -158,10 +158,12 @@ def epuxml_node_is_nil(node):
 
 
 def parse_image_node(root, sub_folder):
-    images_folder = root.findtext(f"./{_GridSquare.HOLE_FOLDER}") # almost always "Images-Disc1"
     image_filename_node = root.find(f"./{_GridSquare.IMAGE}")
+    if epuxml_node_is_nil(image_filename_node):
+        return None
     image_file_ext = image_filename_node.findtext(f".//{_GridSquare.IMAGE_FORMAT}").lower() # "mrc" or "tiff"
     image_file_name = image_filename_node.findtext(f".//{_GridSquare.IMAGE_FILENAME}")
+    images_folder = root.findtext(f"./{_GridSquare.HOLE_FOLDER}")  # almost always "Images-Disc1"
     # Actual file paths are images_folder/type_folder/base_file_name with image_file_ext and .xml
     image_path    = os.path.join(images_folder, sub_folder, f"{image_file_name}.{image_file_ext}")
     metadata_path = os.path.join(images_folder, sub_folder, f"{image_file_name}.xml")
@@ -195,9 +197,7 @@ def parse_hole_from_gridsquare_meta_node(node):
     y_pos = float(node.findtext(f"./{_GridSquare.HOLE_POS_PREFIX}/{_GridSquare.HOLE_POS_Y}"))
     radius = float(node.findtext(f"./{_GridSquare.HOLE_RADIUS}")) / 2
 
-    image = None
-    if not epuxml_node_is_nil(node.find(f"./{_GridSquare.IMAGE}")):
-        image = parse_image_node(node, sub_folder=os.path.join(f"GridSquare_{gridsquare_id_str}", "FoilHoles"))
+    image = parse_image_node(node, sub_folder=os.path.join(f"GridSquare_{gridsquare_id_str}", "FoilHoles"))
 
     acquisition_nodes = node.findall(f".//{_GridSquare.HOLE_ACQUISITION_KVP}/{_EPU.KVP_VALUE}")
     acquisitions = [parse_image_node(x, sub_folder=os.path.join(f"GridSquare_{gridsquare_id_str}",
@@ -268,6 +268,11 @@ def parse_epu_session(epu_meta_dir):
             continue
 
         gridsquare = parse_session_gridsquare_meta(gs_xml_root)
+        # A gridsquare can be selected without ever having been imaged (e.g. the session was ended before EPU got to
+        # it). In some cases, such gridsquares even have, unintuitively, `<State>Completed</State>` in their XML.
+        # Without a gridsquare image, EPU can't have navigated to holes for any more imaging, so discard the square
+        if gridsquare.image is None:
+            continue
         selected_gridsquares[gridsquare.id_str] = gridsquare
 
         # add `epu_meta_dir` to the front of all parsed paths
