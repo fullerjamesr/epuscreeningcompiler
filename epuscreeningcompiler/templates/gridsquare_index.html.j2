@@ -150,8 +150,10 @@
         <div class="scalebar"><div class="sb-bar"></div><span class="sb-label"></span></div>
       </div>
       <div class="gs-nav">
+        {% if has_atlas %}
         <a class="back-link" href="../index.html">← Back to atlas</a>
         |
+        {% endif %}
         <a class="back-link" href="{{ next_link }}">Next grid square →</a>
       </div>
     </div>

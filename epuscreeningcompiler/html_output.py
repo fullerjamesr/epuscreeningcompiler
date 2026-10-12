@@ -37,7 +37,7 @@ def generate_session_html(session, session_output):
         f.write(html)
 
 
-def generate_gridsquare_html(session, square, gs_output):
+def generate_gridsquare_html(session, square, gs_output, has_atlas=True):
     gs_png = os.path.join(gs_output, f"GridSquare_{square.id_str}.png")
     if not os.path.isfile(gs_png):
         return  # no image was generated (source missing), skip HTML too
@@ -78,6 +78,7 @@ def generate_gridsquare_html(session, square, gs_output):
         gs_pixel_size=square.image.pixel_size,
         holes=holes,
         next_link=next_link,
+        has_atlas=has_atlas,
     )
     with open(os.path.join(gs_output, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)
