@@ -67,32 +67,106 @@ def sigma_contrast_arr(data, sigma=3.0, mu=None, std=None, new_range=(0,255), in
         return np.clip(data_, bottom, top) * slope + b
 
 
-def scale_arr(arr, new_range=(0,255), inplace=False):
+def clip_extremes(data, low=0.1, high=99.9, inplace=False):
     """
-    Re-scale the range of values in the input array to ``new_range``.
+    Clip all values in ``data`` to between ``low`` and ``high`` percentiles. Intended for "hot pixel" removal.
 
     Parameters
     ----------
-    arr : np.ndarray
-    new_range : tuple of float
+    data : np.ndarray
+    low : float
+        Low end percentile (0-100) to which values are clipped. Use 0 to not clip the low/dark end.
+    high : float
+        High end percentile (0-100) to which values are clipped. Use 100 to not clip the high/bright end.
     inplace : bool
+        If True, clip `data` itself instead of a copy.
 
     Returns
     -------
     np.ndarray
+        If `inplace` is False, a new float64 array (the input is not modified) clipped to the exact, interpolated,
+        percentile values. This holds even for integer input, so that the bounds are not rounded.
+
+        If `inplace` is True, `data` itself, with its original dtype. Because an integer array cannot hold fractional
+        bounds, for integer arrays the lower bound is rounded down and the upper bound is rounded up to whole numbers
+        (i.e., slightly fewer pixels are clipped than the percentiles strictly imply).
+
+    Raises
+    ------
+    ValueError
+        If the percentiles do not satisfy ``0 <= low < high <= 100``.
+
+    Notes
+    -----
+    If the `low` and `high` percentile values are equal (more than ``high - low`` percent of the pixels share a single
+    value) nothing is clipped. In that case the result is `data` itself if `inplace` is True or a float64 copy of
+    `data` if not.
     """
+    if not 0 <= low < high <= 100:
+        raise ValueError(f"Percentiles must satisfy 0 <= low < high <= 100, got low={low}, high={high}")
+    bottom, top = np.percentile(data, [low, high])
+    if top <= bottom:
+        # More than (high - low)% of the pixels share one value, so fall back to the full range of the data
+        return data if inplace else data.astype(float)
+    if inplace and not np.can_cast(bottom.dtype, data.dtype, casting='same_kind'):
+        bottom = np.floor(bottom).astype(data.dtype)
+        top = np.ceil(top).astype(data.dtype)
+    return np.clip(data, bottom, top, out=data if inplace else None)
+
+
+def scale_arr(arr, new_range=(0,255), inplace=False):
+    """
+    Linearly re-scale the values in the input array so that its minimum maps to ``new_range[0]`` and its maximum to
+    ``new_range[1]``.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        Array of finite values to be scaled. The array must not be constant (see Notes).
+    new_range : tuple of float
+        The new range for the resulting values. E.g., generally `(0, 1)` or `(0, 255)`.
+    inplace : bool
+        If True, scale `arr` itself instead of a copy.
+
+    Returns
+    -------
+    np.ndarray
+        If `inplace` is False, returns a new float64 array (the input is not modified).
+
+        If `inplace` is True, `arr` itself is returned. A float64 array is scaled directly. Arrays of other
+        types are scaled as float64 and then written back.
+
+    Notes
+    -----
+    For in-place operations on a non float array, a copy of the input in float format is made regardless of `inplace`.
+    No check is made that subsequent assignment/truncation back to the original dtype of `arr` will be sensible.
+
+    There is no special handling for constant arrays (maximum equal to minimum): the scale would be
+    zero, so the result is NaN everywhere, along with a RuntimeWarning from numpy. Real images are never constant, so
+    this indicates a broken or empty image, and the warning is meant to make that visible. Casting those NaNs back into
+    an integer array in-place gives platform-dependent values.
+    """
+    # first scale to [0, 1] as dtype=float ... then re-expand to desired range and dtype
     arr_ = np.asarray(arr, dtype=float)
-    slope = (new_range[1] - new_range[0]) / (arr_.max() - arr_.min())
-    b = new_range[0] - slope * arr_.min()
+    # if float conversion did not require a copy but we're not supposed to touch the original, make a copy
+    if arr_ is arr and not inplace:
+        arr_ = arr_.copy()
+    # below this line, arr_ can be safely manipulated in place
+    starting_min = np.min(arr_)
+    starting_max = np.max(arr_)
+    arr_ -= starting_min
+    # don't combine the next 2 ops below, or else floating point error can truncate int conversion (e.g. 254 instead
+    # of 255)
+    arr_ /= (starting_max - starting_min)
+    arr_ *= (new_range[1] - new_range[0])
+    arr_ += new_range[0]
+    # only an array that needed type promotion (e.g. ints) has to be written back (and cast to its dtype)
+    # otherwise return the float converted form
     if inplace:
-        if arr_ is arr:
-            arr *= slope
-            arr += b
-        else:
-            arr[:] = arr_ * slope + b
+        if arr_ is not arr:
+            arr[:] = arr_
         return arr
-    else:
-        return arr_ * slope + b
+    return arr_
 
 
 def auto_contrast_arr(arr, sigma=3.0, new_range=(0,255), inplace=False):

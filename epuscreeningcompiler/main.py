@@ -88,8 +88,9 @@ def process_session(session, output_root, onlypng=False, verbose=False):
             print(f"  GridSquare_{sq.id_str}: {len(sq.holes)} holes")
 
         if os.path.isfile(sq.image.image_path):
-            # for speed, gridsquare images also don't need sigma contrasting
+            # gridsquare images are min/max contrasted, but clip hot pixels
             gs_arr = image.image_file_to_arr(sq.image.image_path)
+            image.clip_extremes(gs_arr, inplace=True)
             image.scale_arr(gs_arr, inplace=True)
             image.arr_to_png(gs_arr, os.path.join(gs_output, f"GridSquare_{sq.id_str}.png"))
             if not onlypng:
