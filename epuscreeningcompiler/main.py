@@ -1,9 +1,13 @@
+import functools
+import glob
 import os
 import shutil
 import sys
 from . import image, epu, html_output
 
 FONT_PATH = os.path.join(os.path.dirname(__file__), "fonts", "DejaVuSans.ttf")
+WINDOWS = sys.platform == "win32"
+WINDOWS_MAX_PATH = 260  # includes the terminating NUL, so at most 259 characters of a path are usable
 
 
 def warn(message):
@@ -12,6 +16,54 @@ def warn(message):
 
 def error_die(message):
     sys.exit(f"{sys.argv[0]}: {message}")
+
+
+@functools.lru_cache(maxsize=None)
+def windows_long_paths_enabled():
+    """
+    Whether the Windows "long paths" setting (the `LongPathsEnabled` registry value, which the "Enable Win32 long
+    paths" Group Policy also sets) is on. Always False on other operating systems, and also if the setting is missing.
+
+    The setting is necessary but not sufficient: a program must also be long-path aware. Standard CPython builds on
+    Windows are (Python 3.6+), so this is only a concern for embedded or frozen Python builds.
+    """
+    if not WINDOWS:
+        return False
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\FileSystem") as key:
+            return winreg.QueryValueEx(key, "LongPathsEnabled")[0] == 1
+    except OSError:
+        return False
+
+
+def path_too_long_for_windows(path, extra=0):
+    """
+    Whether `path` (made absolute) would be too long for Windows to open, because it reaches the 260 character
+    `MAX_PATH` limit and long paths are not enabled. When this is True, Windows fails to open the path (for example,
+    `os.path.isfile` quietly returns False) even though it exists.
+
+    Parameters
+    ----------
+    path : str or os.PathLike
+        The path to check. It does not have to exist.
+    extra : int
+        The number of characters (including any separator) that will be added to the end of `path` before it is used,
+        e.g., ``len("\\EpuSession.dm")`` for a file that will be joined on, or 2 for the "\\*" that Windows adds to
+        a directory path to list its contents.
+
+    Returns
+    -------
+    bool
+        Always False on operating systems other than Windows, if long paths are enabled, or if `path` already has the
+        `\\\\?\\` prefix that lifts the limit. Lengths are counted in UTF-16 code units, as Windows does (a character
+        outside the Basic Multilingual Plane, e.g., most emoji, counts as 2).
+    """
+    path = os.fspath(path)
+    if not WINDOWS or path.startswith("\\\\?\\") or windows_long_paths_enabled():
+        return False
+    utf16_length = len(os.path.abspath(path).encode("utf-16-le", "surrogatepass")) // 2
+    return utf16_length + extra >= WINDOWS_MAX_PATH
 
 
 def process_session(session, output_root, onlypng=False, verbose=False):
@@ -152,7 +204,9 @@ def main():
             "Path remapping:\n"
             "  Set EPU_PATH_MAP to remap Windows paths embedded in EPU metadata to local paths.\n"
             "  Format: 'WIN_PATH1=LOCAL_PATH1;WIN_PATH2=LOCAL_PATH2'\n"
-            "  Example: EPU_PATH_MAP='Y:/Data=/mnt/data;D:/Atlas=/mnt/atlas'"
+            "  Example: EPU_PATH_MAP='Y:/Data=/mnt/data;D:/Atlas=/mnt/atlas'\n"
+            "  Each WIN_PATH is matched (case insensitive) against the start of the path, on whole folder names;\n"
+            "  if several match, the longest is used."
         ))
     parser.add_argument("--atlas",
                         help="Root folder for the Atlas session. If omitted the path embedded in the "
@@ -166,6 +220,38 @@ def main():
     parser.add_argument("epu_sessions", nargs="+",
                         help="Root folder(s) for EPU data collection sessions (each must contain EpuSession.dm)")
     args = parser.parse_args()
+
+    # We need to support Windows because the scope PCs run windows. This leads to 2 annoying issues:
+    # 1) Windows can have a limit of 260 characters on paths. We need to check that to warn users.
+    # 2) Windows shells (cmd.exe, PowerShell) do not expand wildcards (sad!) so expand them here.
+    #    Only arguments that don't exist as-is are treated as patterns, so that legal unix names containing `[`, `?` or
+    #    `*`, or quoted patterns work on unix, work too.
+    epu_sessions = []
+    for session_arg in args.epu_sessions:
+        if WINDOWS and path_too_long_for_windows(session_arg, extra=2):
+            warn(f"SEVERE WARNING: Windows does not appear to be configured for long paths and the input path "
+                 f"'{session_arg}' exceeds the length limit! Fatal errors may occur.")
+        if os.path.isdir(session_arg):
+            epu_sessions.append(session_arg)
+            continue
+        elif any(c in session_arg for c in "*?["):
+            matches = sorted(glob.glob(session_arg))
+            if matches:
+                epu_sessions.extend(matches)
+                continue
+        # only reached if `session_arg` didn't work out
+        error_die(f"{session_arg}: no paths match this path/pattern")
+    args.epu_sessions = epu_sessions
+    if WINDOWS:
+        for p in args.epu_sessions:
+            if path_too_long_for_windows(p, extra=103): # 103 is the longest likely path length to a movie file
+                warn(f"SEVERE WARNING: Windows does not appear to be configured for long paths and input files in "
+                     f"'{p}' are likely to exceed the path length limit! Fatal errors or missing files may occur.")
+        # Paths inside output folder are 80 + session name, so the value before is a guess/fudge
+        if path_too_long_for_windows(args.output, extra=120):
+            warn(f"SEVERE WARNING: Windows does not appear to be configured for long paths and output files in "
+                 f"'{args.output}' are likely to exceed the path length limit! Fatal errors or missing files may "
+                 f"occur.")
 
     # Build PATH_MAP from EPU_PATH_MAP environment variable
     path_map = {}
@@ -198,5 +284,17 @@ def main():
             warn(f"{session_dir}: cannot find Atlas.dm at {session.atlas_file}. Continuing without atlas "
                  f"information: no atlas page will be written. Use --atlas to point to the atlas session "
                  f"folder, or set EPU_PATH_MAP to remap the path in the EPU metadata.")
+
+        # The session name becomes the name of the output subfolder, so it must be a plain, single folder name.
+        # EPU only allows valid Windows folder names, so this should only fail if EpuSession.dm was edited after the
+        # fact. Check if it's empty-like, or contains path separators (to guard against escaping to write outside the
+        # `args.output` folder)
+        name = session.session_name
+        if (len(name.strip()) < 1
+            or name in (".", "..")
+            or any(c in name for c in "/\\:")
+            or any(ord(c) < 32 for c in name)):
+            error_die(f"{session_dir}: the session name {name!r} in EpuSession.dm cannot be used as a folder name "
+                      f"(it must not be empty, '.' or '..', or contain any of / \\ : or control characters)")
 
         process_session(session, args.output, onlypng=args.onlypng, verbose=args.verbose)
