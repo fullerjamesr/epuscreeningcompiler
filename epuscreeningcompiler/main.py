@@ -174,7 +174,7 @@ def main():
         for pair in env_path_map.split(";"):
             if "=" in pair:
                 win_path, _, local_path = pair.partition("=")
-                path_map[epu.windows_to_posix_path(win_path)] = local_path
+                path_map[win_path.strip()] = local_path.strip()
     epu.PATH_MAP = path_map
 
     for session_dir in args.epu_sessions:

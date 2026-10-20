@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import numpy as np
 import os.path
+import re
 from pathlib import PureWindowsPath
 from enum import Enum
 from dataclasses import dataclass
@@ -138,12 +139,49 @@ def windows_to_posix_path(path):
 
 
 def map_path(path, path_map=None):
-    global PATH_MAP
+    """
+    Remap the start of a path stored in EPU metadata (i.e., a Windows path) to a local path.
+
+    Parameters
+    ----------
+    path : str
+        The path to remap, normally already converted with `windows_to_posix_path`.
+    path_map : dict of str to str, optional
+        Maps the beginning of a Windows path (the key) to the local path that replaces it (the value). Defaults to the
+        module-level `PATH_MAP`.
+
+    Returns
+    -------
+    str
+        `path` with the best-matching key replaced by its value, or `path` unchanged if no key matches.
+
+    Notes
+    -----
+    A key matches only at the start of `path`, on whole path components (so ``D:/ATLAS`` does not match
+    ``D:/ATLASES/...``), and case-insensitively on every OS (the metadata paths were written on Windows, where
+    ``D:\\ATLASES`` and ``d:\\atlases`` are the same). If several keys match, the longest one wins, and only one
+    replacement is made (replaced text is never re-matched). Separators on keys are normalized with
+    `windows_to_posix_path`, and trailing separators on keys and values are ignored.
+    """
     if path_map is None:
         path_map = PATH_MAP
+    best = None  # (length of matched prefix, replacement)
     for find, replace in path_map.items():
-        path = path.replace(find, replace)
-    return path
+        if not find.strip():
+            continue
+        find = windows_to_posix_path(find).rstrip("/")
+        match = re.match(re.escape(find), path, flags=re.IGNORECASE)
+        if match is None:
+            continue
+        end = match.end()
+        if end < len(path) and path[end] not in "/\\":
+            continue  # matched only part of a path component
+        if best is None or end > best[0]:
+            best = (end, replace.rstrip("/\\"))
+    if best is None:
+        return path
+    end, replace = best
+    return replace + path[end:]
 
 
 def find_epuxml_kvp_value_node(kvp_nodes, search_key):
