@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{% endblock %}</title>
+  <style>
+    /* ---------- design tokens (shared by every page) ---------- */
+    :root {
+      --bg: #0e1012;
+      --panel: #14181b;
+      --panel-2: #121518;
+      --control-on: #2a3138;
+      --tab-on: #1d2226;
+      --border: #262b31;
+      --border-strong: #3a4148;
+      --text: #e4e7ea;
+      --muted: #a3acb5;
+      --faint: #8d969f;
+      --link: #7fd3e6;
+      --link-hover: #b3e7f2;
+      --accent: #5cc8e0;      /* markers, badges */
+      --accent-ink: #0e1012;  /* text on accent */
+      --selected: #f2c46d;    /* selected hole */
+      --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 var(--font); }
+    a { color: var(--link); }
+    a:hover { color: var(--link-hover); }
+    button { font: inherit; color: inherit; }
+
+    /* the gap between the header and the content is the page's own --gap (set per page), so it matches the gaps inside it */
+    .page { max-width: 1360px; margin: 0 auto; padding: 10px 24px 12px; display: flex; flex-direction: column; gap: var(--gap, 12px); }
+
+    /* ---------- header: a row of label/value fields ---------- */
+    .page-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .fields { display: flex; flex-wrap: wrap; align-items: flex-end; margin: 0; }
+    .field { display: flex; flex-direction: column; padding: 0 20px; border-left: 1px solid var(--border); }
+    .fields > .field:first-child.no-rule { padding-left: 0; border-left: 0; }
+    .fields > .field:last-child { padding-right: 0; }
+    .field-label { font-size: 12px; color: var(--muted); margin: 0; }
+    .field-value { margin: 0; font-size: 16px; font-weight: 500; line-height: 22px; }
+    .field-value.mono { font-family: var(--mono); }
+
+    /* ---------- scale bar (original style; .small for the narrow context panels) ---------- */
+    .scalebar { position: absolute; bottom: 10px; right: 10px; display: flex; flex-direction: column; align-items: center; pointer-events: none; background: rgba(0, 0, 0, 0.5); padding: 6px 10px; border-radius: 3px; }
+    .sb-bar { height: 6px; background: white; border: 1px solid rgba(0, 0, 0, 0.65); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
+    .sb-label { color: white; font: bold 20px/1.4 sans-serif; white-space: nowrap; text-shadow: 0 0 3px #000, 0 0 3px #000; margin-top: 2px; }
+    .scalebar.small .sb-label { font-size: 14px; }
+{% block style %}{% endblock %}
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <header class="page-header">
+    <div class="fields">
+{% block header_left %}{% endblock %}
+    </div>
+    <dl class="fields">
+{% block header_right %}{% endblock %}
+    </dl>
+  </header>
+
+{% block content %}{% endblock %}
+</div>
+
+<script>
+  // ---------- scale bar ----------
+  function niceScale(target) {
+    var exp = Math.floor(Math.log10(target));
+    var p = Math.pow(10, exp);
+    return [1, 1.5, 2, 2.5, 5, 10].map(function (m) { return m * p; })
+      .reduce(function (a, b) { return Math.abs(b - target) < Math.abs(a - target) ? b : a; });
+  }
+  function updateScaleBar(img, bar, label, pixelSizeAng, scale) {
+    scale = scale || 1;
+    if (!img.naturalWidth || !img.clientWidth) return;
+    var angPerPx = pixelSizeAng * img.naturalWidth / img.clientWidth / scale;
+    var ang = niceScale(img.clientWidth * 0.10 * angPerPx);
+    function applyBar(a) {
+      bar.style.width = (a / angPerPx) + 'px';
+      label.textContent = a >= 100000 ? Math.round(a / 10000) + ' µm'
+        : a >= 5000 ? Math.round(a / 10) + ' nm' : Math.round(a) + ' Å';
+    }
+    applyBar(ang);
+    if (bar.offsetWidth < label.offsetWidth + 4) applyBar(niceScale(label.offsetWidth * angPerPx * 1.5));
+  }
+</script>
+{% block script %}{% endblock %}
+</body>
+</html>

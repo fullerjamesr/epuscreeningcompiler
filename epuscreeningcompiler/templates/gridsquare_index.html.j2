@@ -1,355 +1,265 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ session_name }} : GridSquare_{{ id_str }}</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      margin: 1em 2em;
-      background: #1a1a1a;
-      color: #ddd;
-    }
-    h1 { margin-bottom: 0.25em; }
-    .back-link { display: inline-block; margin-bottom: 1em; color: #adf; }
+{% extends "base.html.j2" %}
 
-    .layout {
-      display: flex;
-      gap: 2em;
-      align-items: flex-start;
-    }
+{% block title %}{{ session_name }} : GridSquare_{{ gs_id }}{% endblock %}
 
-    /* --- gridsquare image + SVG overlay --- */
-    .gs-col {
-      flex-shrink: 0;
+{% block style %}
+    :root {
+      --gap: 8px;  /* column gap == tabs-to-image gap on this page */
+      /* The exposure is square, so let it grow to use the window height (the 146px is the page header, tab row, file
+         name, gaps and padding around it, plus a few px of slack), but never get smaller than 820px. */
+      --exposure-size: max(820px, calc(100vh - 146px));
     }
-    .gs-nav {
-      margin-top: 0.75em;
-    }
-    .gs-wrap {
-      position: relative;
-      display: inline-block;
-      line-height: 0;
-    }
-    .gs-wrap img {
-      max-width: 600px;
-      display: block;
-    }
-    .gs-wrap svg {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-    }
-    svg circle {
-      fill: transparent;
-      stroke: transparent;
-      cursor: pointer;
-      transition: fill 0.1s, stroke 0.1s;
-    }
-    svg circle:hover {
-      fill: rgba(255, 255, 100, 0.25);
-      stroke: rgba(255, 255, 100, 0.8);
-      stroke-width: 4;
-    }
-    svg circle.selected {
-      fill: rgba(255, 200, 50, 0.35);
-      stroke: rgba(255, 200, 50, 0.9);
-      stroke-width: 5;
-    }
+    /* widen the shared page container just enough to hold the exposure, the context column (340px), the gap and the padding */
+    .page { max-width: calc(var(--exposure-size) + var(--gap) + 340px + 48px); }
 
-    /* --- data panel --- */
-    .data-panel {
-      flex: 1;
-      min-width: 0;
-    }
-    #prompt {
-      color: #888;
-      font-style: italic;
-    }
-    .hole-data { display: none; }
-    .hole-data.active { display: block; }
-    .hole-data h3 { margin-top: 0; color: #fc8; }
-    .hole-data .img-wrap img {
-      max-width: 100%;
-      max-height: calc(100vh - 8em);
-      display: block;
-      margin-bottom: 0;
-    }
-    .hole-data .img-wrap {
-      margin-bottom: 1em;
-    }
-    .hole-data .section-label {
-      font-size: 0.8em;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #888;
-      margin: 0.5em 0 0.25em;
-    }
+    a.field-value { text-decoration: none; }
+    .square-nav { display: flex; align-items: center; gap: 10px; }
+    .nav-btn { width: 24px; height: 24px; border: 1px solid var(--border-strong); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--text); }
+    .nav-btn:hover { border-color: var(--muted); color: var(--text); }
 
-    /* --- scale bars --- */
-    .img-wrap {
-      position: relative;
-      display: inline-block;
-      line-height: 0;
-    }
-    .img-wrap.data-img {
-      overflow: hidden;
-      cursor: zoom-in;
-    }
-    .img-wrap.data-img img {
-      transform-origin: 0 0;
-    }
-    .scalebar {
-      position: absolute;
-      bottom: 10px;
-      right: 10px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      pointer-events: none;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 6px 10px;
-      border-radius: 3px;
-    }
-    .sb-bar {
-      height: 6px;
-      background: white;
-      border: 1px solid rgba(0, 0, 0, 0.65);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-    }
-    .sb-label {
-      color: white;
-      font: bold 20px/1.4 sans-serif;
-      white-space: nowrap;
-      text-shadow: 0 0 3px #000, 0 0 3px #000;
-      margin-top: 2px;
-    }
-  </style>
-</head>
-<body>
-  <h1>{{ session_name }} : GridSquare_{{ id_str }}</h1>
+    /* ---------- layout: small context column left, exposure right ---------- */
+    .layout { display: flex; flex-wrap: wrap; gap: var(--gap); align-items: flex-start; }
+    .context-col { flex: 1 1 280px; max-width: 340px; display: flex; flex-direction: column; gap: 20px; }
+    /* the exposure column takes the free width only up to the exposure size; the rest goes to the context column (up to its max) */
+    .exposure-col { flex: 999 1 520px; max-width: var(--exposure-size); min-width: 0; display: flex; flex-direction: column; gap: var(--gap); }
+    figure { margin: 0; display: flex; flex-direction: column; gap: var(--gap); }
+    figcaption { font-size: 16px; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+    .panel { position: relative; width: 100%; aspect-ratio: 1; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #000; }
+    .panel > img { width: 100%; height: 100%; display: block; }
+    .panel.empty { background: transparent; border-style: dashed; border-color: var(--border-strong); display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 13px; }
 
+    /* hole rings on the grid square: the real hole radius, no fill, no label */
+    .panel svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .hole .hit { fill: transparent; cursor: pointer; }
+    .hole .ring { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+    /* thin black border: a wider black circle under the ring, 1px wider on each side, so the ring stands out on any image */
+    .hole .halo { fill: none; stroke: #000; stroke-width: 4; vector-effect: non-scaling-stroke; pointer-events: none; }
+    .hole:hover .ring { stroke: var(--link-hover); }
+    .hole.selected .ring { stroke: var(--selected); stroke-width: 3; }
+    .hole.selected .halo { stroke-width: 5; }
+    .hole:focus { outline: none; }
+    .hole:focus-visible .ring { stroke-width: 4; }
+    .hole:focus-visible .halo { stroke-width: 6; }
+
+    /* hole tabs */
+    .tabs { display: flex; flex-wrap: wrap; gap: 6px; min-height: 32px; align-items: center; }
+    .tab { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 6px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); cursor: pointer; }
+    .tab[aria-selected="true"] { border-color: var(--selected); background: var(--tab-on); }
+    .tab-num { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font: 500 12px/1 var(--mono); display: flex; align-items: center; justify-content: center; }
+    .tab[aria-selected="true"] .tab-num { background: var(--selected); }
+    .tab-id { font: 13px/1 var(--mono); }
+
+    /* exposure viewer */
+    .exposure-list { display: flex; flex-direction: column; gap: 16px; }   /* multiple exposures stack vertically */
+    .exposure-item { display: flex; flex-direction: column; gap: 6px; }
+    .exposure { max-width: var(--exposure-size); cursor: zoom-in; }
+    .exposure > img { transform-origin: 0 0; }
+    .file-name { max-width: var(--exposure-size); font: 12px/1.4 var(--mono); color: var(--muted); word-break: break-all; }
+{% endblock %}
+
+{% block header_left %}
+      <div class="field no-rule">
+        <div class="field-label">Session name</div>
+        {% if has_atlas %}
+        <a class="field-value" href="../index.html">← {{ session_name }}</a>
+        {% else %}
+        <div class="field-value">{{ session_name }}</div>
+        {% endif %}
+      </div>
+      <div class="field">
+        <div class="field-label">Grid square · {{ index }} of {{ n_gridsquares }}</div>
+        <div class="square-nav">
+          <a class="nav-btn" href="{{ prev.href }}" aria-label="Previous grid square, {{ prev.id }}" title="Previous: {{ prev.id }} ({{ prev.index }} of {{ n_gridsquares }})">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>
+          </a>
+          <h1 class="field-value mono">{{ gs_id }}</h1>
+          <a class="nav-btn" href="{{ next.href }}" aria-label="Next grid square, {{ next.id }}" title="Next: {{ next.id }} ({{ next.index }} of {{ n_gridsquares }})">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+          </a>
+        </div>
+      </div>
+{% endblock %}
+
+{% block header_right %}
+      <div class="field"><dt class="field-label">Holes</dt><dd class="field-value mono">{{ n_holes }}</dd></div>
+      <div class="field"><dt class="field-label">Exposures</dt><dd class="field-value mono">{{ n_exposures }}</dd></div>
+      <div class="field"><dt class="field-label">Foil-hole images</dt><dd class="field-value mono">{{ n_foilholes }}</dd></div>
+      {% if collected %}
+      <div class="field"><dt class="field-label">Collected</dt><dd class="field-value mono">{{ collected }}</dd></div>
+      {% endif %}
+{% endblock %}
+
+{% block content %}
   <div class="layout">
 
-    <!-- Left: annotated gridsquare image with clickable hole overlay -->
-    <div class="gs-col">
-      <div class="gs-wrap" data-pixel-size="{{ gs_pixel_size }}">
-        <img src="GridSquare_{{ id_str }}_annotated.png" alt="GridSquare {{ id_str }}">
-        <svg id="gs-svg"
-             viewBox="0 0 {{ gs_width }} {{ gs_height }}"
-             xmlns="http://www.w3.org/2000/svg">
-          {% for hole in holes %}
-          <circle
-            data-hole-id="{{ hole.id_str }}"
-            cx="{{ hole.cx }}" cy="{{ hole.cy }}" r="{{ hole.r }}"
-            title="Hole {{ hole.id_str }}"
-          />
-          {% endfor %}
-        </svg>
-        <div class="scalebar"><div class="sb-bar"></div><span class="sb-label"></span></div>
-      </div>
-      <div class="gs-nav">
-        {% if has_atlas %}
-        <a class="back-link" href="../index.html">← Back to atlas</a>
-        |
-        {% endif %}
-        <a class="back-link" href="{{ next_link }}">Next grid square →</a>
-      </div>
-    </div>
-
-    <!-- Right: images for the selected hole -->
-    <div class="data-panel">
-      <p id="prompt">Click a hole to view images</p>
-
-      {% for hole in holes %}
-      <div class="hole-data" id="hole-{{ hole.id_str }}">
-        <h3>Hole {{ hole.id_str }}</h3>
-
-        {% if hole.data_pngs %}
-        <div class="section-label">Data ({{ hole.data_pngs | length }} exposure{{ 's' if hole.data_pngs | length != 1 }})</div>
-        {% for p in hole.data_pngs %}
-        <div class="img-wrap data-img" data-pixel-size="{{ p.pixel_size }}">
-          <img data-src="{{ p.path }}" alt="{{ p.path }}">
-          <div class="scalebar"><div class="sb-bar"></div><span class="sb-label"></span></div>
+    <aside class="context-col">
+      <figure>
+        <figcaption>Grid square</figcaption>
+        <div class="panel" data-pixel-size="{{ gs_pixel_size }}">
+          <img id="gs-img" src="GridSquare_{{ gs_id }}.png" alt="Grid square {{ gs_id }} with imaged holes circled">
+          <svg id="gs-svg" viewBox="0 0 {{ gs_width }} {{ gs_height }}" xmlns="http://www.w3.org/2000/svg">
+            <!-- Rings are generated by JS from #hole-data (one <g class="hole"> per hole). -->
+          </svg>
+          <div class="scalebar small"><div class="sb-bar"></div><span class="sb-label"></span></div>
         </div>
-        {% endfor %}
-        {% endif %}
+      </figure>
 
-        {% if hole.foilhole_png %}
-        <div class="section-label">Foil hole</div>
-        <div class="img-wrap" data-pixel-size="{{ hole.foilhole_png.pixel_size }}">
-          <img data-src="{{ hole.foilhole_png.path }}" alt="FoilHole {{ hole.id_str }}">
-          <div class="scalebar"><div class="sb-bar"></div><span class="sb-label"></span></div>
+      <figure>
+        <figcaption>Foil hole</figcaption>
+        <div class="panel" id="fh-panel">
+          <img id="fh-img" alt="">
+          <div class="scalebar small"><div class="sb-bar"></div><span class="sb-label"></span></div>
         </div>
-        {% endif %}
-      </div>
-      {% endfor %}
-    </div>
+        <div class="panel empty" id="fh-empty" hidden>No foil-hole image for this hole</div>
+      </figure>
+    </aside>
 
+    <section class="exposure-col" aria-label="Exposure">
+      <div class="tabs" role="tablist" aria-label="Holes" id="tabs">
+        <!-- Tabs are generated by JS from #hole-data. -->
+      </div>
+      <!-- One .exposure-item per exposure of the selected hole, stacked top to bottom (built by JS).
+           Each has its own zoom/pan and scale bar. -->
+      <div class="exposure-list" id="exposure-list"></div>
+      <div class="panel exposure empty" id="exp-empty" hidden>No exposure recorded for this hole</div>
+    </section>
   </div>
+{% endblock %}
 
-  <script>
-    // --- Scale bar ---
-    function niceScale(target) {
-      var exp = Math.floor(Math.log10(target));
-      var p = Math.pow(10, exp);
-      return [1, 1.5, 2, 2.5, 5, 10].map(function(m) { return m * p; })
-        .reduce(function(a, b) { return Math.abs(b - target) < Math.abs(a - target) ? b : a; });
+{% block script %}
+<!-- The only per-hole data the page needs. Paths are relative to this page. -->
+<script id="hole-data" type="application/json">{{ holes | tojson }}</script>
+
+<script>
+  // Scale bar for a static panel; returns a refresh function. The pixel size is read from the panel's
+  // data-pixel-size each time, because the foil hole panel is reused for every hole.
+  function scaleBarFor(panel, getScale) {
+    var img = panel.querySelector('img'), bar = panel.querySelector('.sb-bar'), label = panel.querySelector('.sb-label');
+    function refresh() { updateScaleBar(img, bar, label, parseFloat(panel.dataset.pixelSize), getScale ? getScale() : 1); }
+    img.addEventListener('load', refresh);
+    if (img.complete && img.naturalWidth) refresh();
+    panel._ro = new ResizeObserver(refresh);   // kept so it can be disconnected when the panel is removed
+    panel._ro.observe(panel);
+    return refresh;
+  }
+
+  // ---------- zoom + pan on an exposure ----------
+  function setupZoom(panel) {
+    var img = panel.querySelector('img');
+    var s = 1, tx = 0, ty = 0, dragging = false, dx = 0, dy = 0, dtx = 0, dty = 0;
+    var refreshBar = scaleBarFor(panel, function () { return s; });
+    function clamp() {
+      var w = panel.clientWidth, h = panel.clientHeight;
+      tx = Math.min(0, Math.max(tx, w - w * s)); ty = Math.min(0, Math.max(ty, h - h * s));
     }
-
-    function updateScaleBar(img, bar, label, pixelSizeAng, scale) {
-      scale = scale || 1;
-      if (!img.naturalWidth || !img.clientWidth) return;
-      var angPerPx = pixelSizeAng * img.naturalWidth / img.clientWidth / scale;
-      var ang = niceScale(img.clientWidth * 0.10 * angPerPx);
-      function applyBar(a) {
-        bar.style.width = (a / angPerPx) + 'px';
-        label.textContent = a >= 100000
-          ? Math.round(a / 10000) + ' µm'
-          : a >= 5000
-            ? Math.round(a / 10) + ' nm'
-            : Math.round(a) + ' Å';
-      }
-      applyBar(ang);
-      if (bar.offsetWidth < label.offsetWidth + 4) {
-        applyBar(niceScale(label.offsetWidth * angPerPx * 1.5));
-      }
+    function apply() {
+      img.style.transform = s === 1 ? '' : 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
+      panel.style.cursor = dragging ? 'grabbing' : (s > 1 ? 'grab' : 'zoom-in');
+      refreshBar();
     }
-
-    // --- Zoom + pan (for .data-img wrappers — transform on <img> directly) ---
-    function setupZoom(wrap) {
-      var img   = wrap.querySelector('img');
-      var bar   = wrap.querySelector('.sb-bar');
-      var label = wrap.querySelector('.sb-label');
-      var px    = parseFloat(wrap.dataset.pixelSize);
-      var s = 1, tx = 0, ty = 0;
-      var dragging = false;
-      var dragX = 0, dragY = 0, dragTx = 0, dragTy = 0;
-
-      function clamp() {
-        var w = wrap.clientWidth, h = wrap.clientHeight;
-        tx = Math.min(0, Math.max(tx, w - w * s));
-        ty = Math.min(0, Math.max(ty, h - h * s));
-      }
-
-      function applyTransform() {
-        img.style.transform = s === 1 ? '' : 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
-        wrap.style.cursor = dragging ? 'grabbing' : (s > 1 ? 'grab' : 'zoom-in');
-        updateScaleBar(img, bar, label, px, s);
-      }
-
-      wrap.addEventListener('wheel', function(e) {
-        e.preventDefault();
-        var rect = wrap.getBoundingClientRect();
-        var mx = e.clientX - rect.left;
-        var my = e.clientY - rect.top;
-        var factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-        var ns = Math.max(1, Math.min(10, s * factor));
-        var ratio = ns / s;
-        tx = mx - ratio * (mx - tx);
-        ty = my - ratio * (my - ty);
-        s = ns;
-        clamp();
-        applyTransform();
-      }, { passive: false });
-
-      wrap.addEventListener('mousedown', function(e) {
-        if (s <= 1 || e.button !== 0) return;
-        e.preventDefault();
-        dragging = true;
-        dragX = e.clientX; dragY = e.clientY;
-        dragTx = tx; dragTy = ty;
-        wrap.style.cursor = 'grabbing';
-      });
-
-      wrap.addEventListener('mousemove', function(e) {
-        if (!dragging) return;
-        tx = dragTx + (e.clientX - dragX);
-        ty = dragTy + (e.clientY - dragY);
-        clamp();
-        img.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
-      });
-
-      function endDrag() {
-        if (!dragging) return;
-        dragging = false;
-        wrap.style.cursor = s > 1 ? 'grab' : 'zoom-in';
-      }
-      wrap.addEventListener('mouseup', endDrag);
-      wrap.addEventListener('mouseleave', endDrag);
-
-      wrap.addEventListener('dblclick', function() {
-        s = 1; tx = 0; ty = 0;
-        applyTransform();
-      });
-
-      return function refresh() { updateScaleBar(img, bar, label, px, s); };
-    }
-
-    // --- Set up all scale bars (and zoom for data images) ---
-    function setupScaleBars() {
-      // Gridsquare overview (scale bar only, no zoom)
-      document.querySelectorAll('.gs-wrap[data-pixel-size]').forEach(function(wrap) {
-        var img   = wrap.querySelector('img');
-        var bar   = wrap.querySelector('.sb-bar');
-        var label = wrap.querySelector('.sb-label');
-        var px    = parseFloat(wrap.dataset.pixelSize);
-        function refresh() { updateScaleBar(img, bar, label, px, 1); }
-        img.addEventListener('load', refresh);
-        if (img.complete && img.naturalWidth) refresh();
-        var ro = new ResizeObserver(function() { clearTimeout(ro._t); ro._t = setTimeout(refresh, 50); });
-        ro.observe(wrap);
-      });
-
-      // Hole + data images (scale bar; zoom only for .data-img)
-      document.querySelectorAll('.img-wrap[data-pixel-size]').forEach(function(wrap) {
-        var img   = wrap.querySelector('img');
-        var bar   = wrap.querySelector('.sb-bar');
-        var label = wrap.querySelector('.sb-label');
-        var px    = parseFloat(wrap.dataset.pixelSize);
-        var refresh;
-
-        if (wrap.classList.contains('data-img')) {
-          refresh = setupZoom(wrap);
-        } else {
-          refresh = function() { updateScaleBar(img, bar, label, px, 1); };
-        }
-
-        img.addEventListener('load', refresh);
-        if (img.complete && img.naturalWidth) refresh();
-        var ro = new ResizeObserver(function() { clearTimeout(ro._t); ro._t = setTimeout(refresh, 50); });
-        ro.observe(wrap);
-      });
-    }
-
-    document.addEventListener('DOMContentLoaded', setupScaleBars);
-
-    // --- Hole selection & lazy loading ---
-    var circles = document.querySelectorAll('#gs-svg circle');
-    var prompt  = document.getElementById('prompt');
-
-    circles.forEach(function(circle) {
-      circle.addEventListener('click', function() {
-        var holeId = this.dataset.holeId;
-
-        circles.forEach(function(c) { c.classList.remove('selected'); });
-        document.querySelectorAll('.hole-data').forEach(function(d) { d.classList.remove('active'); });
-
-        this.classList.add('selected');
-        prompt.style.display = 'none';
-
-        var panel = document.getElementById('hole-' + holeId);
-        if (panel) {
-          panel.classList.add('active');
-          panel.querySelectorAll('img[data-src]').forEach(function(img) {
-            if (!img.src || img.src === window.location.href) {
-              img.src = img.dataset.src;
-            }
-          });
-        }
-      });
+    panel.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var r = panel.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      var ns = Math.max(1, Math.min(10, s * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+      tx = mx - ns / s * (mx - tx); ty = my - ns / s * (my - ty); s = ns; clamp(); apply();
+    }, { passive: false });
+    panel.addEventListener('mousedown', function (e) {
+      if (s <= 1 || e.button !== 0) return;
+      e.preventDefault(); dragging = true; dx = e.clientX; dy = e.clientY; dtx = tx; dty = ty;
     });
-  </script>
-</body>
-</html>
+    panel.addEventListener('mousemove', function (e) {
+      if (!dragging) return; tx = dtx + e.clientX - dx; ty = dty + e.clientY - dy; clamp(); apply();
+    });
+    function end() { if (dragging) { dragging = false; apply(); } }
+    panel.addEventListener('mouseup', end);
+    panel.addEventListener('mouseleave', end);
+    panel.addEventListener('dblclick', function () { s = 1; tx = 0; ty = 0; apply(); });
+  }
+
+  // ---------- hole selection ----------
+  (function () {
+    var SVG = 'http://www.w3.org/2000/svg';
+    var holes = JSON.parse(document.getElementById('hole-data').textContent);
+    var svg = document.getElementById('gs-svg');
+    var tabsEl = document.getElementById('tabs');
+    var expList = document.getElementById('exposure-list'), expEmpty = document.getElementById('exp-empty');
+    var fhPanel = document.getElementById('fh-panel'), fhEmpty = document.getElementById('fh-empty');
+    var fhImg = document.getElementById('fh-img');
+
+    scaleBarFor(document.getElementById('gs-img').parentElement);
+    var refreshFh = scaleBarFor(fhPanel);
+
+    var rings = [], tabs = [];
+    holes.forEach(function (h, i) {
+      // ring: exact hole radius; invisible hit circle at least ~10 screen px so tiny holes stay clickable
+      var g = document.createElementNS(SVG, 'g');
+      g.setAttribute('class', 'hole');
+      g.setAttribute('tabindex', '0');
+      g.setAttribute('role', 'button');
+      g.setAttribute('aria-label', 'Hole ' + h.id);
+      var hit = document.createElementNS(SVG, 'circle');
+      hit.setAttribute('class', 'hit'); hit.setAttribute('cx', h.cx); hit.setAttribute('cy', h.cy); hit.setAttribute('r', Math.max(h.r, 60));
+      var halo = document.createElementNS(SVG, 'circle');   // black border under the ring
+      halo.setAttribute('class', 'halo'); halo.setAttribute('cx', h.cx); halo.setAttribute('cy', h.cy); halo.setAttribute('r', h.r);
+      var ring = document.createElementNS(SVG, 'circle');
+      ring.setAttribute('class', 'ring'); ring.setAttribute('cx', h.cx); ring.setAttribute('cy', h.cy); ring.setAttribute('r', h.r);
+      var t = document.createElementNS(SVG, 'title'); t.textContent = 'Hole ' + h.id;
+      g.append(t, hit, halo, ring);
+      g.addEventListener('click', function () { select(i); });
+      g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(i); } });
+      svg.appendChild(g); rings.push(g);
+
+      var tab = document.createElement('button');
+      tab.type = 'button'; tab.className = 'tab'; tab.setAttribute('role', 'tab');
+      tab.innerHTML = '<span class="tab-num">' + (i + 1) + '</span><span class="tab-id">' + h.id + '</span>';
+      tab.addEventListener('click', function () { select(i); });
+      tabsEl.appendChild(tab); tabs.push(tab);
+    });
+
+    function select(i) {
+      var h = holes[i];
+      rings.forEach(function (g, j) { g.classList.toggle('selected', j === i); });
+      tabs.forEach(function (t, j) { t.setAttribute('aria-selected', j === i ? 'true' : 'false'); });
+
+      // Rebuild the exposure stack: one zoomable panel + file name per exposure. Only the selected hole's images load.
+      expList.querySelectorAll('.panel').forEach(function (p) { if (p._ro) p._ro.disconnect(); });
+      expList.textContent = '';
+      h.exposures.forEach(function (e, k) {
+        var item = document.createElement('div');
+        item.className = 'exposure-item';
+        var panel = document.createElement('div');
+        panel.className = 'panel exposure';
+        panel.dataset.pixelSize = e.pixel_size;
+        var img = document.createElement('img');
+        img.src = e.path;
+        img.alt = 'Exposure ' + (k + 1) + ' of ' + h.exposures.length + ', hole ' + h.id;
+        panel.appendChild(img);
+        panel.insertAdjacentHTML('beforeend', '<div class="scalebar"><div class="sb-bar"></div><span class="sb-label"></span></div>');
+        var name = document.createElement('div');
+        name.className = 'file-name';
+        name.textContent = e.path.split('/').pop();
+        item.append(panel, name);
+        expList.appendChild(item);
+        setupZoom(panel);
+      });
+      expEmpty.hidden = h.exposures.length > 0;
+
+      fhPanel.hidden = !h.foilhole; fhEmpty.hidden = !!h.foilhole;
+      if (h.foilhole) {
+        fhPanel.dataset.pixelSize = h.foilhole.pixel_size;
+        fhImg.src = h.foilhole.path; fhImg.alt = 'Foil-hole image, hole ' + h.id;
+        refreshFh();
+      }
+
+      history.replaceState(null, '', '#hole-' + h.id);   // deep link to a hole
+    }
+
+    if (holes.length) {
+      var fromHash = holes.findIndex(function (h) { return location.hash === '#hole-' + h.id; });
+      select(fromHash >= 0 ? fromHash : 0);
+    } else {   // a grid square without any holes: nothing to select
+      expEmpty.hidden = false; fhPanel.hidden = true; fhEmpty.hidden = false;
+    }
+  })();
+</script>
+{% endblock %}

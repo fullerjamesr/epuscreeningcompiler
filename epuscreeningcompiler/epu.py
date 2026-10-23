@@ -20,6 +20,7 @@ class _EPU:
 class _Session:
     """XML paths for EpuSession.dm and its per-GridSquare .dm sidecar files."""
     NAME                = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}Name"
+    TIME                = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}StartDateTime"
     GRID_NAME           = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}AutoloaderDescription"
     GRID_SLOT           = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}AutoloaderSlot"
     IMAGE_FORMAT        = "{http://schemas.datacontract.org/2004/07/Applications.Epu.Persistence}ImageFileFormat"
@@ -93,6 +94,7 @@ class EpuImage:
 
 @dataclass
 class EpuDataSession:
+    start_time: str
     session_dir: str
     session_file: str  # should be session_dir/EpuSession.dm
     atlas_file: str
@@ -269,6 +271,7 @@ def parse_epu_session(epu_meta_dir):
     xml_root = xml_tree.getroot()
 
     session_name = xml_root.findtext(f"./{_Session.NAME}")
+    session_start_time = xml_root.findtext(f".{_Session.TIME}")
     grid_name = xml_root.findtext(f"./{_Session.GRID_NAME}")
     grid_slot = int(xml_root.findtext(f"./{_Session.GRID_SLOT}"))
 
@@ -328,7 +331,8 @@ def parse_epu_session(epu_meta_dir):
                 data.metadata_path = os.path.join(epu_meta_dir, data.metadata_path)
                 populate_epuimage(data)
 
-    return EpuDataSession(session_dir=epu_meta_dir,
+    return EpuDataSession(start_time=session_start_time,
+                          session_dir=epu_meta_dir,
                           session_file=epu_meta_path,
                           atlas_file=atlas_file,
                           autoloader_slot=grid_slot,
@@ -442,7 +446,8 @@ def parse_atlas_only_session(atlas_xml_root):
     populate_epuimage(atlas_image)
     atlas_file = map_path(windows_to_posix_path(os.path.join(atlas_xml_root.findtext(f"./{_Atlas.STORAGE}"),
                                                              "Atlas", "Atlas.dm")))
-    return EpuDataSession(session_dir="",
+    return EpuDataSession(start_time="",
+                          session_dir="",
                           session_file="",
                           atlas_file=atlas_file,
                           autoloader_slot=-1,

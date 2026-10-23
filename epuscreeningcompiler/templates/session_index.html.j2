@@ -1,252 +1,218 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ session_name }} — Atlas</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      margin: 1em 2em;
-      background: #1a1a1a;
-      color: #ddd;
-    }
-    h1 { margin-bottom: 0.25em; }
-    .controls {
-      margin: 0.75em 0 1em;
-      display: flex;
-      gap: 1.5em;
-      align-items: center;
-    }
-    label { cursor: pointer; font-size: 1em; }
-    .atlas-wrap {
-      position: relative;
-      display: inline-block;
-      overflow: hidden;
-      cursor: zoom-in;
-    }
-    .zoom-inner {
-      position: relative;
-      line-height: 0;
-      transform-origin: 0 0;
-    }
-    .atlas-wrap img {
-      max-width: 100%;
-      max-height: calc(100vh - 8em);
-      display: block;
-    }
-    .atlas-wrap svg {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-    }
-    svg polygon {
-      fill: transparent;
-      stroke: transparent;
-      cursor: pointer;
-      transition: fill 0.1s;
-    }
-    svg polygon:hover {
-      fill: rgba(255, 255, 100, 0.25);
-      stroke: rgba(255, 255, 100, 0.7);
-      stroke-width: 4;
-    }
+{% extends "base.html.j2" %}
+{% macro plural(n, word) %}{{ n }} {{ word }}{{ "" if n == 1 else "s" }}{% endmacro %}
 
-    /* --- scale bar --- */
-    .scalebar {
-      position: absolute;
-      bottom: 10px;
-      right: 10px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      pointer-events: none;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 6px 10px;
-      border-radius: 3px;
-    }
-    .sb-bar {
-      height: 6px;
-      background: white;
-      border: 1px solid rgba(0, 0, 0, 0.65);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-    }
-    .sb-label {
-      color: white;
-      font: bold 20px/1.4 sans-serif;
-      white-space: nowrap;
-      text-shadow: 0 0 3px #000, 0 0 3px #000;
-      margin-top: 2px;
-    }
-  </style>
-</head>
-<body>
-  <h1>{{ session_name }}</h1>
+{% block title %}{{ session_name }} — Atlas{% endblock %}
 
-  <div class="controls">
-    <strong>View:</strong>
-    <label>
-      <input type="radio" name="atlas-view" value="selected" checked>
-      Selected gridsquares
-    </label>
-    <label>
-      <input type="radio" name="atlas-view" value="categories">
-      All categories
-    </label>
+{% block style %}
+    :root {
+      --gap: 8px;  /* the one spacing used between the header, the column headings, the atlas, the columns and the cards */
+      /* The atlas is square, so its width is also its height: let it grow to use the window height (the 132px is the
+         page header, column heading, gaps and padding above and below it, plus a few px of slack), but never get
+         smaller than 800px. */
+      --atlas-size: max(800px, calc(100vh - 132px));
+    }
+    /* widen the shared page container just enough to hold the atlas, the card column (560px), the gap and the padding */
+    .page { max-width: calc(var(--atlas-size) + var(--gap) + 560px + 48px); }
+
+    /* ---------- layout ---------- */
+    .layout { display: flex; flex-wrap: wrap; gap: var(--gap); align-items: flex-start; }
+    .atlas-col { flex: 1 1 560px; max-width: var(--atlas-size); min-width: 0; display: flex; flex-direction: column; gap: var(--gap); }
+    .squares-col { flex: 1 1 340px; max-width: 560px; display: flex; flex-direction: column; gap: var(--gap); }
+    .col-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; }
+    h2 { margin: 0; font-size: 16px; font-weight: 600; }
+
+    /* segmented control (atlas layer) */
+    .segmented { display: flex; padding: 3px; gap: 2px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); }
+    .segmented button { min-height: 34px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 13px; cursor: pointer; }
+    .segmented button[aria-pressed="true"] { background: var(--control-on); color: var(--text); }
+
+    /* ---------- atlas viewer ---------- */
+    .viewer { position: relative; width: 100%; aspect-ratio: 1; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #000; cursor: zoom-in; }
+    .zoom-inner { position: absolute; inset: 0; transform-origin: 0 0; }
+    .zoom-inner img { width: 100%; height: 100%; display: block; }
+    .zoom-inner svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .square-outline { fill: transparent; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; cursor: pointer; }
+    .square-outline:hover { fill: rgba(92, 200, 224, 0.2); }
+    .chips { position: absolute; inset: 0; pointer-events: none; }
+    .chip { position: absolute; transform: translate(6px, -50%); padding: 2px 8px; border-radius: 4px; background: var(--accent); color: var(--accent-ink); font: 500 12px/1.4 var(--mono); white-space: nowrap; }
+    .viewer.no-overlay svg, .viewer.no-overlay .chips { display: none; }
+
+    /* ---------- grid square cards ---------- */
+    .square-card { display: flex; gap: 16px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); text-decoration: none; color: var(--text); }
+    .square-card:hover { border-color: var(--border-strong); color: var(--text); }
+    .square-card img { width: 112px; height: 112px; border-radius: 6px; display: block; flex: none; object-fit: cover; }
+    .card-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+    .card-title { display: flex; align-items: center; gap: 8px; }
+    .badge { width: 22px; height: 22px; border-radius: 4px; background: var(--accent); color: var(--accent-ink); font: 500 12px/1 var(--mono); display: flex; align-items: center; justify-content: center; }
+    .card-id { font: 500 16px/1.2 var(--mono); }
+    .card-meta { font-size: 13px; color: var(--muted); }
+    .card-open { margin-top: auto; font-size: 13px; color: var(--link); }
+{% endblock %}
+
+{% block header_left %}
+      <div class="field no-rule">
+        <div class="field-label">Session name</div>
+        <h1 class="field-value">{{ session_name }}</h1>
+      </div>
+{% endblock %}
+
+{% block header_right %}
+      <div class="field">
+        <dt class="field-label">Grid squares</dt>
+        <dd class="field-value mono">{{ gridsquares | length }}</dd>
+      </div>
+      <div class="field">
+        <dt class="field-label">Exposures</dt>
+        <dd class="field-value mono">{{ n_exposures }}</dd>
+      </div>
+      {% if collected %}
+      <div class="field">
+        <dt class="field-label">Collected</dt>
+        <dd class="field-value mono">{{ collected }}</dd>
+      </div>
+      {% endif %}
+{% endblock %}
+
+{% block content %}
+  <div class="layout">
+
+    <section class="atlas-col" aria-label="Atlas">
+      <div class="col-head">
+        <h2>Atlas</h2>
+        <div class="segmented" role="group" aria-label="Atlas layer">
+          <button type="button" data-layer="screened" data-src="atlas.png" aria-pressed="true">Screened</button>
+          <button type="button" data-layer="categories" data-src="atlas_categories.png" aria-pressed="false">All categories</button>
+          <button type="button" data-layer="raw" data-src="atlas.png" aria-pressed="false">Raw</button>
+        </div>
+      </div>
+
+      <div class="viewer" id="atlas-viewer" data-pixel-size="{{ atlas_pixel_size }}">
+        <div class="zoom-inner">
+          <img id="atlas-img" src="atlas.png" alt="Atlas with the screened grid squares outlined">
+          <svg viewBox="0 0 {{ atlas_width }} {{ atlas_height }}" xmlns="http://www.w3.org/2000/svg">
+            {% for gs in gridsquares if gs.points %}
+            <polygon class="square-outline" data-id="{{ gs.id }}" data-href="{{ gs.href }}"
+                     points="{{ gs.points }}"><title>GridSquare {{ gs.id }}</title></polygon>
+            {% endfor %}
+          </svg>
+        </div>
+        <!-- Label chips live OUTSIDE the zoom transform so they stay 12px; JS positions them. -->
+        <div class="chips" aria-hidden="true">
+          {% for gs in gridsquares if gs.points %}
+          <span class="chip" data-for="{{ gs.id }}">{{ gs.index }} · {{ gs.id }}</span>
+          {% endfor %}
+        </div>
+        <div class="scalebar"><div class="sb-bar"></div><span class="sb-label"></span></div>
+      </div>
+    </section>
+
+    <section class="squares-col" aria-label="Screened grid squares">
+      <div class="col-head"><h2>Screened grid squares</h2></div>
+
+      {% for gs in gridsquares %}
+      <a class="square-card" href="{{ gs.href }}">
+        <img src="{{ gs.thumb }}" alt="" loading="lazy" decoding="async">
+        <span class="card-body">
+          <span class="card-title"><span class="badge">{{ gs.index }}</span><span class="card-id">{{ gs.id }}</span></span>
+          <span class="card-meta">{{ plural(gs.n_holes, "hole") }} · {{ plural(gs.n_exposures, "exposure") }} · {{ plural(gs.n_foilholes, "foil-hole image") }}</span>
+          <span class="card-open">Open grid square →</span>
+        </span>
+      </a>
+      {% endfor %}
+    </section>
   </div>
+{% endblock %}
 
-  <div class="atlas-wrap" data-pixel-size="{{ atlas_pixel_size }}">
-    <div class="zoom-inner">
-      <img id="atlas-img" src="atlas_selected.png" alt="Atlas">
-      <svg id="atlas-svg"
-           viewBox="0 0 {{ atlas_width }} {{ atlas_height }}"
-           xmlns="http://www.w3.org/2000/svg">
-        {% for gs in gridsquares %}
-        <polygon
-          data-href="{{ gs.link }}"
-          points="{{ gs.vertices_str }}"
-          title="GridSquare {{ gs.id_str }}"
-        />
-        {% endfor %}
-      </svg>
-    </div>
-    <div class="scalebar"><div class="sb-bar"></div><span class="sb-label"></span></div>
-  </div>
+{% block script %}
+<script>
+  (function () {
+    var viewer = document.getElementById('atlas-viewer');
+    var inner  = viewer.querySelector('.zoom-inner');
+    var img    = document.getElementById('atlas-img');
+    var svg    = viewer.querySelector('svg');
+    var bar    = viewer.querySelector('.sb-bar');
+    var label  = viewer.querySelector('.sb-label');
+    var px     = parseFloat(viewer.dataset.pixelSize);
+    var vb     = svg.viewBox.baseVal;
+    var s = 1, tx = 0, ty = 0, dragging = false, moved = false, justPanned = false;
+    var dx = 0, dy = 0, dtx = 0, dty = 0;
 
-  <script>
-    // --- Scale bar ---
-    function niceScale(target) {
-      var exp = Math.floor(Math.log10(target));
-      var p = Math.pow(10, exp);
-      return [1, 1.5, 2, 2.5, 5, 10].map(function(m) { return m * p; })
-        .reduce(function(a, b) { return Math.abs(b - target) < Math.abs(a - target) ? b : a; });
+    // Label chips: anchored to the right edge of each polygon's bounding box.
+    var anchors = {};
+    svg.querySelectorAll('polygon').forEach(function (poly) {
+      var xs = [], ys = [];
+      poly.getAttribute('points').trim().split(/\s+/).forEach(function (pt) {
+        var c = pt.split(','); xs.push(+c[0]); ys.push(+c[1]);
+      });
+      anchors[poly.dataset.id] = {
+        x: Math.max.apply(null, xs) / vb.width,
+        y: (Math.min.apply(null, ys) + Math.max.apply(null, ys)) / 2 / vb.height
+      };
+    });
+    function placeChips() {
+      var w = viewer.clientWidth, h = viewer.clientHeight;
+      viewer.querySelectorAll('.chip').forEach(function (chip) {
+        var a = anchors[chip.dataset.for];
+        if (!a) return;
+        chip.style.left = (tx + a.x * w * s) + 'px';
+        chip.style.top  = (ty + a.y * h * s) + 'px';
+      });
     }
 
-    function updateScaleBar(img, bar, label, pixelSizeAng, scale) {
-      scale = scale || 1;
-      if (!img.naturalWidth || !img.clientWidth) return;
-      var angPerPx = pixelSizeAng * img.naturalWidth / img.clientWidth / scale;
-      var ang = niceScale(img.clientWidth * 0.10 * angPerPx);
-      function applyBar(a) {
-        bar.style.width = (a / angPerPx) + 'px';
-        label.textContent = a >= 100000
-          ? Math.round(a / 10000) + ' µm'
-          : a >= 5000
-            ? Math.round(a / 10) + ' nm'
-            : Math.round(a) + ' Å';
-      }
-      applyBar(ang);
-      if (bar.offsetWidth < label.offsetWidth + 4) {
-        applyBar(niceScale(label.offsetWidth * angPerPx * 1.5));
-      }
+    function clamp() {
+      var w = viewer.clientWidth, h = viewer.clientHeight;
+      tx = Math.min(0, Math.max(tx, w - w * s));
+      ty = Math.min(0, Math.max(ty, h - h * s));
     }
+    function apply() {
+      inner.style.transform = s === 1 ? '' : 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
+      viewer.style.cursor = dragging ? 'grabbing' : (s > 1 ? 'grab' : 'zoom-in');
+      updateScaleBar(img, bar, label, px, s);
+      placeChips();
+    }
+    function refresh() { updateScaleBar(img, bar, label, px, s); placeChips(); }
+    img.addEventListener('load', refresh);
+    if (img.complete && img.naturalWidth) refresh();
+    new ResizeObserver(function () { clamp(); apply(); }).observe(viewer);
 
-    // --- Atlas zoom + pan ---
-    var atlasJustPanned = false;
+    viewer.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var r = viewer.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      var ns = Math.max(1, Math.min(10, s * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+      tx = mx - ns / s * (mx - tx); ty = my - ns / s * (my - ty); s = ns;
+      clamp(); apply();
+    }, { passive: false });
+    viewer.addEventListener('mousedown', function (e) {
+      if (s <= 1 || e.button !== 0) return;
+      e.preventDefault(); dragging = true; moved = false;
+      dx = e.clientX; dy = e.clientY; dtx = tx; dty = ty;
+    });
+    viewer.addEventListener('mousemove', function (e) {
+      if (!dragging) return;
+      tx = dtx + e.clientX - dx; ty = dty + e.clientY - dy; moved = true;
+      clamp(); apply();
+    });
+    function endDrag() { if (dragging) { dragging = false; if (moved) justPanned = true; apply(); } }
+    viewer.addEventListener('mouseup', endDrag);
+    viewer.addEventListener('mouseleave', endDrag);
+    viewer.addEventListener('dblclick', function () { s = 1; tx = 0; ty = 0; apply(); });
 
-    (function() {
-      var wrap      = document.querySelector('.atlas-wrap');
-      var inner     = wrap.querySelector('.zoom-inner');
-      var img       = document.getElementById('atlas-img');
-      var bar       = wrap.querySelector('.sb-bar');
-      var label     = wrap.querySelector('.sb-label');
-      var px        = parseFloat(wrap.dataset.pixelSize);
-      var s = 1, tx = 0, ty = 0;
-      var dragging  = false, hasMoved = false;
-      var dragX = 0, dragY = 0, dragTx = 0, dragTy = 0;
-
-      function clamp() {
-        var w = wrap.clientWidth, h = wrap.clientHeight;
-        tx = Math.min(0, Math.max(tx, w - w * s));
-        ty = Math.min(0, Math.max(ty, h - h * s));
-      }
-
-      function applyTransform() {
-        inner.style.transform = s === 1 ? '' : 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
-        wrap.style.cursor = dragging ? 'grabbing' : (s > 1 ? 'grab' : 'zoom-in');
-        updateScaleBar(img, bar, label, px, s);
-      }
-
-      function refresh() { updateScaleBar(img, bar, label, px, s); }
-      img.addEventListener('load', refresh);
-      if (img.complete && img.naturalWidth) refresh();
-
-      var ro = new ResizeObserver(function() {
-        clearTimeout(ro._t);
-        ro._t = setTimeout(refresh, 50);
-      });
-      ro.observe(wrap);
-
-      wrap.addEventListener('wheel', function(e) {
-        e.preventDefault();
-        var rect = wrap.getBoundingClientRect();
-        var mx = e.clientX - rect.left;
-        var my = e.clientY - rect.top;
-        var factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-        var ns = Math.max(1, Math.min(10, s * factor));
-        var ratio = ns / s;
-        tx = mx - ratio * (mx - tx);
-        ty = my - ratio * (my - ty);
-        s = ns;
-        clamp();
-        applyTransform();
-      }, { passive: false });
-
-      wrap.addEventListener('mousedown', function(e) {
-        if (s <= 1 || e.button !== 0) return;
-        e.preventDefault();
-        dragging = true; hasMoved = false;
-        dragX = e.clientX; dragY = e.clientY;
-        dragTx = tx; dragTy = ty;
-        wrap.style.cursor = 'grabbing';
-      });
-
-      wrap.addEventListener('mousemove', function(e) {
-        if (!dragging) return;
-        tx = dragTx + (e.clientX - dragX);
-        ty = dragTy + (e.clientY - dragY);
-        clamp();
-        hasMoved = true;
-        inner.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
-      });
-
-      function endDrag() {
-        if (!dragging) return;
-        dragging = false;
-        if (hasMoved) atlasJustPanned = true;
-        wrap.style.cursor = s > 1 ? 'grab' : 'zoom-in';
-      }
-      wrap.addEventListener('mouseup', endDrag);
-      wrap.addEventListener('mouseleave', endDrag);
-
-      wrap.addEventListener('dblclick', function() {
-        s = 1; tx = 0; ty = 0;
-        applyTransform();
-      });
-    })();
-
-    // --- Radio toggle ---
-    document.querySelectorAll('input[name="atlas-view"]').forEach(function(radio) {
-      radio.addEventListener('change', function() {
-        var img = document.getElementById('atlas-img');
-        var svg = document.getElementById('atlas-svg');
-        if (this.value === 'selected') {
-          img.src = 'atlas_selected.png';
-          svg.style.display = '';
-        } else {
-          img.src = 'atlas_categories.png';
-          svg.style.display = 'none';
-        }
+    // Clicking an outline opens that grid square (ignored right after a pan).
+    svg.querySelectorAll('polygon').forEach(function (poly) {
+      poly.addEventListener('click', function () {
+        if (justPanned) { justPanned = false; return; }
+        window.location.href = poly.dataset.href;
       });
     });
 
-    // Click a gridsquare polygon → navigate (suppressed if user just panned)
-    document.querySelectorAll('#atlas-svg polygon').forEach(function(poly) {
-      poly.addEventListener('click', function() {
-        if (atlasJustPanned) { atlasJustPanned = false; return; }
-        window.location.href = this.dataset.href;
+    // Layer toggle: Screened = raw atlas + outlines; All categories = EPU category image, no outlines; Raw = no outlines.
+    document.querySelectorAll('.segmented button').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.segmented button').forEach(function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
+        img.src = btn.dataset.src;
+        viewer.classList.toggle('no-overlay', btn.dataset.layer !== 'screened');
       });
     });
-  </script>
-</body>
-</html>
+  })();
+</script>
+{% endblock %}
