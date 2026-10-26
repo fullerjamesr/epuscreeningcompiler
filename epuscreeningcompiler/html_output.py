@@ -39,16 +39,11 @@ def format_collected_date(start_time):
 
 def _ordered_square_ids(session):
     """
-    IDs of the selected gridsquares that get a page, sorted. This is the one ordering used for the atlas chips and
-    cards, the "i of n" in the gridsquare header, and the previous/next links. A gridsquare gets a page when its source
-    image exists (see `main.process_session`).
+    IDs of the selected gridsquares that get a page, sorted. This is the ordering used for the atlas chips and
+    cards, the "i of n" in the gridsquare header, and the previous/next links.
     """
-    ids = []
-    for gs_id in sorted(session.selected_gridsquares):
-        square = session.gridsquares.get(gs_id)
-        if square is not None and square.image is not None and os.path.isfile(square.image.image_path):
-            ids.append(gs_id)
-    return ids
+    # for now we just sort the selected_gridsquares set. but this is where different ordering could be implemented.
+    return sorted(session.selected_gridsquares)
 
 
 def _hole_records(square, gs_output):
