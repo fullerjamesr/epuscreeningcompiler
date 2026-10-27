@@ -189,10 +189,9 @@ def process_session(session, output_root, onlypng=False, verbose=False):
                     if not onlypng:
                         shutil.copy2(acq_src, acq_output)
 
-        html_output.generate_gridsquare_html(session, sq, gs_output, has_atlas=atlas_written)
+        html_output.generate_gridsquare_html(session, sq, gs_output)
 
-    if atlas_written:
-        html_output.generate_session_html(session, session_output)
+    html_output.generate_session_html(session, session_output, has_atlas=atlas_written)
 
 
 def main():
@@ -282,7 +281,7 @@ def main():
             epu.populate_session_with_atlas(session)
         else:
             warn(f"{session_dir}: cannot find Atlas.dm at {session.atlas_file}. Continuing without atlas "
-                 f"information: no atlas page will be written. Use --atlas to point to the atlas session "
+                 f"information: no atlas images will be written. Use --atlas to point to the atlas session "
                  f"folder, or set EPU_PATH_MAP to remap the path in the EPU metadata.")
 
         # The session name becomes the name of the output subfolder, so it must be a plain, single folder name.

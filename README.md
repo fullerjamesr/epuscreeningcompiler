@@ -86,7 +86,7 @@ All MRC files are direct copies of the EPU outputs. All PNG files maintain the f
 Output folder and file structure is similar the structure of EPU sessions, but simplified and with atlases at the root:
 ```
 <session_name>/
-  index.html                                       interactive atlas page
+  index.html                                       interactive atlas/overview page
   atlas.[png, mrc]                                 plain atlas
   atlas_selected.png                               atlas with acquired gridsquares annotated
   atlas_categories.png                             atlas with EPU categorization annotations

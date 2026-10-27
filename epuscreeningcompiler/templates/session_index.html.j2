@@ -1,7 +1,7 @@
 {% extends "base.html.j2" %}
 {% macro plural(n, word) %}{{ n }} {{ word }}{{ "" if n == 1 else "s" }}{% endmacro %}
 
-{% block title %}{{ session_name }} — Atlas{% endblock %}
+{% block title %}{{ session_name }} — {{ "Atlas" if has_atlas else "Grid squares" }}{% endblock %}
 
 {% block style %}
     :root {
@@ -11,8 +11,10 @@
          smaller than 800px. */
       --atlas-size: max(800px, calc(100vh - 132px));
     }
+    {% if has_atlas %}
     /* widen the shared page container just enough to hold the atlas, the card column (560px), the gap and the padding */
     .page { max-width: calc(var(--atlas-size) + var(--gap) + 560px + 48px); }
+    {% endif %}
 
     /* ---------- layout ---------- */
     .layout { display: flex; flex-wrap: wrap; gap: var(--gap); align-items: flex-start; }
@@ -47,6 +49,11 @@
     .card-id { font: 500 16px/1.2 var(--mono); }
     .card-meta { font-size: 13px; color: var(--muted); }
     .card-open { margin-top: auto; font-size: 13px; color: var(--link); }
+    {% if not has_atlas %}
+    /* no atlas: the cards fill the page as a grid */
+    .squares-col { flex: 1 1 100%; max-width: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+    .squares-col .col-head { grid-column: 1 / -1; }
+    {% endif %}
 {% endblock %}
 
 {% block header_left %}
@@ -76,6 +83,7 @@
 {% block content %}
   <div class="layout">
 
+    {% if has_atlas %}
     <section class="atlas-col" aria-label="Atlas">
       <div class="col-head">
         <h2>Atlas</h2>
@@ -105,6 +113,7 @@
         <div class="scalebar"><div class="sb-bar"></div><span class="sb-label"></span></div>
       </div>
     </section>
+    {% endif %}
 
     <section class="squares-col" aria-label="Screened grid squares">
       <div class="col-head"><h2>Screened grid squares</h2></div>
@@ -124,6 +133,7 @@
 {% endblock %}
 
 {% block script %}
+{% if has_atlas %}
 <script>
   (function () {
     var viewer = document.getElementById('atlas-viewer');
@@ -215,4 +225,5 @@
     });
   })();
 </script>
+{% endif %}
 {% endblock %}

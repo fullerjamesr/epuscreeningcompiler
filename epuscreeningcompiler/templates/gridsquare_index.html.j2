@@ -60,11 +60,7 @@
 {% block header_left %}
       <div class="field no-rule">
         <div class="field-label">Session name</div>
-        {% if has_atlas %}
         <a class="field-value" href="../index.html">← {{ session_name }}</a>
-        {% else %}
-        <div class="field-value">{{ session_name }}</div>
-        {% endif %}
       </div>
       <div class="field">
         <div class="field-label">Grid square · {{ index }} of {{ n_gridsquares }}</div>

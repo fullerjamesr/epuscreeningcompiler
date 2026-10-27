@@ -81,9 +81,11 @@ def _counts(holes):
             sum(1 for hole in holes if hole["foilhole"] is not None))
 
 
-def generate_session_html(session, session_output):
-    with Image.open(os.path.join(session_output, "atlas.png")) as atlas_png:
-        atlas_width, atlas_height = atlas_png.size
+def generate_session_html(session, session_output, has_atlas=True):
+    atlas_width = atlas_height = None
+    if has_atlas:
+        with Image.open(os.path.join(session_output, "atlas.png")) as atlas_png:
+            atlas_width, atlas_height = atlas_png.size
 
     gridsquares = []
     n_exposures = 0
@@ -109,6 +111,7 @@ def generate_session_html(session, session_output):
         session_name=session.session_name,
         collected=format_collected_date(session.start_time),
         n_exposures=n_exposures,
+        has_atlas=has_atlas,
         atlas_width=atlas_width,
         atlas_height=atlas_height,
         atlas_pixel_size=session.atlas_image.pixel_size if session.atlas_image is not None else 0.0,
@@ -118,7 +121,7 @@ def generate_session_html(session, session_output):
         f.write(html)
 
 
-def generate_gridsquare_html(session, square, gs_output, has_atlas=True):
+def generate_gridsquare_html(session, square, gs_output):
     gs_png = os.path.join(gs_output, f"GridSquare_{square.id_str}.png")
     if not os.path.isfile(gs_png):
         return  # no image was generated (source missing), skip HTML too
@@ -140,7 +143,6 @@ def generate_gridsquare_html(session, square, gs_output, has_atlas=True):
     html = template.render(
         session_name=session.session_name,
         collected=format_collected_date(session.start_time),
-        has_atlas=has_atlas,
         gs_id=square.id_str,
         index=position + 1,
         n_gridsquares=len(ids),
