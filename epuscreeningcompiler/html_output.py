@@ -74,43 +74,85 @@ def _hole_records(square, gs_output):
     return holes
 
 
-def _counts(holes):
-    """ Returns tuple of (number of holes, number of exposures, number of foil hole images) for a list of holes"""
-    return (len(holes),
-            sum(len(hole["exposures"]) for hole in holes),
-            sum(1 for hole in holes if hole["foilhole"] is not None))
+def generate_html(session, session_output, has_atlas=True):
+    """
+    Write the HTML pages for a session: the root ``index.html`` (the atlas page, or just the gridsquare cards if
+    there is no atlas) and the ``GridSquare_<id>/index.html`` page of each gridsquare whose gridsquare image was written.
 
-
-def generate_session_html(session, session_output, has_atlas=True):
+    This has to be called after all the PNG files have been written to `session_output`: the pages only list the images
+    that exist there.
+    """
     atlas_width = atlas_height = None
     if has_atlas:
         with Image.open(os.path.join(session_output, "atlas.png")) as atlas_png:
             atlas_width, atlas_height = atlas_png.size
 
+    date_collected = format_collected_date(session.start_time)
+
+    ordered_square_ids = _ordered_square_ids(session)
+
+    # gridsquare lookup with wraparound for prev/next navigation, returns dict expected by gridsquare jinja template
+    def neighbor(neighbor_i):
+        unwrapped_i = neighbor_i % len(ordered_square_ids)
+        this_id = ordered_square_ids[unwrapped_i]
+        return {"id": this_id,
+                "index": unwrapped_i + 1,
+                "href": f"../GridSquare_{this_id}/index.html"}
+
+    gridsquare_template = _jinja_env.get_template("gridsquare_index.html.j2")
     gridsquares = []
-    n_exposures = 0
-    for index, gs_id in enumerate(_ordered_square_ids(session), start=1):
+    for position, gs_id in enumerate(ordered_square_ids):
         square = session.gridsquares[gs_id]
-        n_holes, n_gs_exposures, n_foilholes = _counts(
-            _hole_records(square, os.path.join(session_output, f"GridSquare_{gs_id}")))
-        n_exposures += n_gs_exposures
+        gs_output = os.path.join(session_output, f"GridSquare_{gs_id}")
+        holes = _hole_records(square, gs_output)
+        n_holes = len(holes)
+        n_data_exposures = sum(len(hole["exposures"]) for hole in holes)
+        n_foilhole_exposures = sum(1 for hole in holes if hole["foilhole"] is not None)
+        square_index = position + 1  # "index" on the html pages is base 1 not 0
+
+        # build `gridsquares`, a list of the needed per-gridsquare information in dict format so jinja can use it
+        # the actual gridsquare pages don't use most of this, but the session/atlas/root page does
         gridsquares.append({
             "id": gs_id,
-            "index": index,
-            # the outline (and its label) on the atlas needs the polygon from the atlas metadata
+            "index": square_index,
             "points": " ".join(f"{x:.2f},{y:.2f}" for x, y in square.vertices) if square.vertices else None,
             "href": f"GridSquare_{gs_id}/index.html",
             "thumb": f"GridSquare_{gs_id}/GridSquare_{gs_id}.png",
             "n_holes": n_holes,
-            "n_exposures": n_gs_exposures,
-            "n_foilholes": n_foilholes,
+            "n_exposures": n_data_exposures,
+            "n_foilholes": n_foilhole_exposures,
         })
 
-    template = _jinja_env.get_template("session_index.html.j2")
-    html = template.render(
+        gs_png = os.path.join(gs_output, f"GridSquare_{gs_id}.png")
+        if not os.path.isfile(gs_png):
+            continue  # no image was generated (source missing), skip this page
+        with Image.open(gs_png) as gs_image:
+            gs_width, gs_height = gs_image.size
+
+        html = gridsquare_template.render(
+            session_name=session.session_name,
+            collected=date_collected,
+            gs_id=gs_id,
+            index=square_index,
+            n_gridsquares=len(ordered_square_ids),
+            prev=neighbor(position - 1), # the index arg for `neighbor` is base 0, but it returns base 1 for the html
+            next=neighbor(position + 1),
+            gs_width=gs_width,
+            gs_height=gs_height,
+            gs_pixel_size=square.image.pixel_size,
+            holes=holes,
+            n_holes=n_holes,
+            n_exposures=n_data_exposures,
+            n_foilholes=n_foilhole_exposures,
+        )
+        with open(os.path.join(gs_output, "index.html"), "w", encoding="utf-8") as f:
+            f.write(html)
+
+    n_session_exposures = sum(g["n_exposures"] for g in gridsquares)
+    html = _jinja_env.get_template("session_index.html.j2").render(
         session_name=session.session_name,
-        collected=format_collected_date(session.start_time),
-        n_exposures=n_exposures,
+        collected=date_collected,
+        n_exposures=n_session_exposures,
         has_atlas=has_atlas,
         atlas_width=atlas_width,
         atlas_height=atlas_height,
@@ -118,43 +160,4 @@ def generate_session_html(session, session_output, has_atlas=True):
         gridsquares=gridsquares,
     )
     with open(os.path.join(session_output, "index.html"), "w", encoding="utf-8") as f:
-        f.write(html)
-
-
-def generate_gridsquare_html(session, square, gs_output):
-    gs_png = os.path.join(gs_output, f"GridSquare_{square.id_str}.png")
-    if not os.path.isfile(gs_png):
-        return  # no image was generated (source missing), skip HTML too
-    with Image.open(gs_png) as gs_image:
-        gs_width, gs_height = gs_image.size
-
-    holes = _hole_records(square, gs_output)
-    n_holes, n_exposures, n_foilholes = _counts(holes)
-
-    # previous/next wrap around, so they are never disabled
-    ids = _ordered_square_ids(session)
-    position = ids.index(square.id_str)
-
-    def neighbor(i):
-        gs_id = ids[i % len(ids)]
-        return {"id": gs_id, "index": i % len(ids) + 1, "href": f"../GridSquare_{gs_id}/index.html"}
-
-    template = _jinja_env.get_template("gridsquare_index.html.j2")
-    html = template.render(
-        session_name=session.session_name,
-        collected=format_collected_date(session.start_time),
-        gs_id=square.id_str,
-        index=position + 1,
-        n_gridsquares=len(ids),
-        prev=neighbor(position - 1),
-        next=neighbor(position + 1),
-        gs_width=gs_width,
-        gs_height=gs_height,
-        gs_pixel_size=square.image.pixel_size,
-        holes=holes,
-        n_holes=n_holes,
-        n_exposures=n_exposures,
-        n_foilholes=n_foilholes,
-    )
-    with open(os.path.join(gs_output, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)

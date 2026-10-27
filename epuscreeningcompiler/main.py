@@ -189,9 +189,7 @@ def process_session(session, output_root, onlypng=False, verbose=False):
                     if not onlypng:
                         shutil.copy2(acq_src, acq_output)
 
-        html_output.generate_gridsquare_html(session, sq, gs_output)
-
-    html_output.generate_session_html(session, session_output, has_atlas=atlas_written)
+    html_output.generate_html(session, session_output, has_atlas=atlas_written)
 
 
 def main():
