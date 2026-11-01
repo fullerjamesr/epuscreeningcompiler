@@ -8,9 +8,15 @@
       /* The exposure is square, so let it grow to use the window height (the 146px is the page header, tab row, file
          name, gaps and padding around it, plus a few px of slack), but never get smaller than 820px. */
       --exposure-size: max(820px, calc(100vh - 146px));
+      /* The context column starts level with the tab row, 40px (32px row + 8px gap) above the exposure, and its bottom
+         should not go below the exposure's: the grid square and foil-hole panels (square, each with a 32px caption and
+         an 8px gap below it, and a 20px gap between the two) must satisfy 2 * (32 + 8 + width) + 20 <= exposure-size + 40. */
+      --context-max: calc((var(--exposure-size) - 60px) / 2);
     }
-    /* widen the shared page container just enough to hold the exposure, the context column (340px), the gap and the padding */
-    .page { max-width: calc(var(--exposure-size) + var(--gap) + 340px + 48px); }
+    /* As wide as the atlas page (its 800px / 132px / 560px / 48px, see session_index.html.j2), but no wider than the
+       exposure, the context column at its maximum, the gap and the padding need. */
+    .page { max-width: min(calc(max(800px, 100vh - 132px) + var(--gap) + 560px + 48px),
+                           calc(var(--exposure-size) + var(--gap) + var(--context-max) + 48px)); }
 
     a.field-value { text-decoration: none; }
     .square-nav { display: flex; align-items: center; gap: 10px; }
@@ -19,11 +25,13 @@
 
     /* ---------- layout: small context column left, exposure right ---------- */
     .layout { display: flex; flex-wrap: wrap; gap: var(--gap); align-items: flex-start; }
-    .context-col { flex: 1 1 280px; max-width: 340px; display: flex; flex-direction: column; gap: 20px; }
+    .context-col { flex: 1 1 280px; max-width: var(--context-max); display: flex; flex-direction: column; gap: 20px; }
     /* the exposure column takes the free width only up to the exposure size; the rest goes to the context column (up to its max) */
     .exposure-col { flex: 999 1 520px; max-width: var(--exposure-size); min-width: 0; display: flex; flex-direction: column; gap: var(--gap); }
     figure { margin: 0; display: flex; flex-direction: column; gap: var(--gap); }
-    figcaption { font-size: 16px; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+    /* the 32px box matches the tab row so the panels start level with the exposure; the text sits at the bottom of it
+       (tight line-height) so the visible gap to the image is just the --gap */
+    figcaption { font-size: 16px; font-weight: 600; line-height: 1; min-height: 32px; display: flex; align-items: flex-end; }
     .panel { position: relative; width: 100%; aspect-ratio: 1; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #000; }
     .panel > img { width: 100%; height: 100%; display: block; }
     .panel.empty { background: transparent; border-style: dashed; border-color: var(--border-strong); display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 13px; }
