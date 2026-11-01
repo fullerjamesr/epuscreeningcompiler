@@ -65,6 +65,7 @@ class _Atlas:
 class _ImageMeta:
     """XML path within EPU image metadata files"""
     PIXEL_SIZE = "./{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}SpatialScale/{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}pixelSize/{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}x/{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}numericValue"
+    MAGNIFICATION = "./{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}microscopeData/{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}optics/{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}TemMagnification/{http://schemas.datacontract.org/2004/07/Fei.SharedObjects}NominalMagnification"
 
 
 PATH_MAP = {}  # populated at runtime from EPU_PATH_MAP env var (or set directly for testing)
@@ -89,6 +90,7 @@ class EpuImage:
     image_path: str
     metadata_path: str
     pixel_size: float
+    magnification: int
     format: ImageFormat
 
 
@@ -213,14 +215,18 @@ def parse_image_node(root, sub_folder):
     return EpuImage(image_path=image_path,
                     metadata_path=metadata_path,
                     pixel_size=0.00,
+                    magnification=0,
                     format=ImageFormat(image_file_ext))
 
 
 def populate_epuimage(image: EpuImage):
     xml_root = ET.parse(image.metadata_path).getroot()
     pixel_size = float(xml_root.findtext(_ImageMeta.PIXEL_SIZE)) * 1e10 # convert to angstroms from meters
-
+    # EPU sometimes writes weird floating point "Nominal magnification"s e.g. 114.99999999999999, or not at all :-(
+    mag_str = xml_root.findtext(_ImageMeta.MAGNIFICATION)
+    magnification = round(float(mag_str)) if mag_str else 0
     image.pixel_size = pixel_size
+    image.magnification = magnification
 
 
 def parse_image_node_to_filename(root):
@@ -417,6 +423,7 @@ def populate_session_with_atlas(epu_session):
     atlas_image = EpuImage(image_path=os.path.join(atlas_dir, f"{base_name}.{fmt}"),
                            metadata_path=os.path.join(atlas_dir, f"{base_name}.xml"),
                            pixel_size=0.0,
+                           magnification=0,
                            format=ImageFormat(fmt))
     populate_epuimage(atlas_image)
     epu_session.atlas_image = atlas_image
@@ -442,6 +449,7 @@ def parse_atlas_only_session(atlas_xml_root):
     atlas_image = EpuImage(image_path=atlas_image_path,
                            metadata_path=atlas_metadata_path,
                            pixel_size=0.0,
+                           magnification=0,
                            format=ImageFormat(fmt))
     populate_epuimage(atlas_image)
     atlas_file = map_path(windows_to_posix_path(os.path.join(atlas_xml_root.findtext(f"./{_Atlas.STORAGE}"),

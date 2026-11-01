@@ -37,6 +37,20 @@ def format_collected_date(start_time):
     return f"{date.day} {_MONTH_NAMES[date.month - 1]} {date.year}"
 
 
+def format_magnification(magnification):
+    """
+    String format for displaying nominal magnifications. Numeric followed by "kx" or "x" with no spaces.
+    Below 10000 it is shown as is, in x: ``700`` -> ``700x``
+    From 10000 up it is shown in kx: ``120000`` -> ``120kx``, ``13500`` -> ``13.5kx``. A whole number of kx is
+    shown without decimal places, anything else with one.
+    """
+    if magnification < 10000:
+        return f"{magnification}x"
+    if magnification % 1000 == 0:
+        return f"{magnification // 1000}kx"
+    return f"{magnification / 1000:.1f}kx"
+
+
 def _ordered_square_ids(session):
     """
     IDs of the selected gridsquares that get a page, sorted. This is the ordering used for the atlas chips and
@@ -57,7 +71,9 @@ def _hole_records(square, gs_output):
         for acq in hole.acquisitions:
             path = f"Data/{os.path.splitext(os.path.basename(acq.image_path))[0]}.png"
             if os.path.isfile(os.path.join(gs_output, path)):
-                exposures.append({"path": path, "pixel_size": acq.pixel_size})
+                exposures.append({"path": path,
+                                  "pixel_size": acq.pixel_size,
+                                  "info": f"{format_magnification(acq.magnification)} | {acq.pixel_size:.2f} Å/px"})
         foilhole = None
         if hole.image is not None:
             path = f"FoilHoles/FoilHole_{hole.id_str}.png"

@@ -241,7 +241,7 @@
         panel.insertAdjacentHTML('beforeend', '<div class="scalebar"><div class="sb-bar"></div><span class="sb-label"></span></div>');
         var name = document.createElement('div');
         name.className = 'file-name';
-        name.textContent = e.path.split('/').pop();
+        name.textContent = e.path.split('/').pop() + ' | ' + e.info;   // file name | magnification | pixel size
         item.append(panel, name);
         expList.appendChild(item);
         setupZoom(panel);
