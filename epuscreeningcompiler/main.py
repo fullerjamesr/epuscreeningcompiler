@@ -84,9 +84,14 @@ def process_session(session, output_root, onlypng=False, verbose=False):
         # for speed, atlases don't need sigma contrasting, so just scale values as-is
         atlas_arr = image.image_file_to_arr(session.atlas_image.image_path)
         image.scale_arr(atlas_arr, inplace=True)
-        image.arr_to_png(atlas_arr, os.path.join(session_output, "atlas.png"))
+        atlas_output_root = os.path.join(session_output, "atlas")
+        image.arr_to_png(atlas_arr, atlas_output_root + ".png")
+        atlas_written = True
         if not onlypng:
-            shutil.copy2(session.atlas_image.image_path, session_output)
+            shutil.copy2(session.atlas_image.image_path,
+                         atlas_output_root + os.path.splitext(session.atlas_image.image_path)[1])
+            shutil.copy2(session.atlas_image.metadata_path,
+                         atlas_output_root + os.path.splitext(session.atlas_image.metadata_path)[1])
         atlas_img, atlas_canvas = image.arr_to_drawable_img(atlas_arr)
 
         # Size font to fit the smallest selected gridsquare
@@ -144,9 +149,13 @@ def process_session(session, output_root, onlypng=False, verbose=False):
             gs_arr = image.image_file_to_arr(sq.image.image_path)
             image.clip_extremes(gs_arr, inplace=True)
             image.scale_arr(gs_arr, inplace=True)
-            image.arr_to_png(gs_arr, os.path.join(gs_output, f"GridSquare_{sq.id_str}.png"))
+            gridsquare_output_root = os.path.join(gs_output, f"GridSquare_{sq.id_str}")
+            image.arr_to_png(gs_arr, gridsquare_output_root + ".png")
             if not onlypng:
-                shutil.copy2(sq.image.image_path, gs_output)
+                shutil.copy2(sq.image.image_path,
+                             gridsquare_output_root + os.path.splitext(sq.image.image_path)[1])
+                shutil.copy2(sq.image.metadata_path,
+                             gridsquare_output_root + os.path.splitext(sq.image.metadata_path)[1])
 
             if sq.holes:
                 gs_img, gs_canvas = image.arr_to_drawable_img(gs_arr)
@@ -173,10 +182,13 @@ def process_session(session, output_root, onlypng=False, verbose=False):
                 if os.path.isfile(hole_src):
                     hole_arr = image.image_file_to_arr(hole_src)
                     image.auto_contrast_arr(hole_arr, sigma=image.DefaultSigmaContrast.HOLE, inplace=True)
-                    image.arr_to_png(hole_arr,
-                                     os.path.join(hole_output, f"FoilHole_{hole.id_str}.png"))
+                    hole_output_root = os.path.join(hole_output, f"FoilHole_{hole.id_str}")
+                    image.arr_to_png(hole_arr, hole_output_root + ".png")
                     if not onlypng:
-                        shutil.copy2(hole_src, hole_output)
+                        shutil.copy2(hole_src,
+                                     hole_output_root + os.path.splitext(hole_src)[1])
+                        shutil.copy2(hole.image.metadata_path,
+                                     hole_output_root + os.path.splitext(hole.image.metadata_path)[1])
 
             for acq in hole.acquisitions:
                 acq_src = acq.image_path
@@ -188,6 +200,7 @@ def process_session(session, output_root, onlypng=False, verbose=False):
                                      os.path.join(acq_output, f"{stem}.png"))
                     if not onlypng:
                         shutil.copy2(acq_src, acq_output)
+                        shutil.copy2(acq.metadata_path, acq_output)
 
     html_output.generate_html(session, session_output, has_atlas=atlas_written)
 
@@ -211,7 +224,7 @@ def main():
     parser.add_argument("--output", required=True,
                         help="Root folder for the output hierarchy")
     parser.add_argument("--onlypng", action="store_true",
-                        help="Only write PNG files; do not copy source MRC/TIFF files")
+                        help="Only write PNG files; do not copy source MRC/TIFF files or metadata XML files")
     parser.add_argument("--verbose", action="store_true",
                         help="Print progress information")
     parser.add_argument("epu_sessions", nargs="+",

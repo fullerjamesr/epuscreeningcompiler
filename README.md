@@ -82,23 +82,23 @@ epuscreeningcompiler \
 
 ### Output layout
 
-All MRC files are direct copies of the EPU outputs. All PNG files maintain the full resolution of the source MRC files.
+All MRC and XML files are direct copies of the EPU outputs (the XML files are the image metadata). All PNG files maintain the full resolution of the source MRC files.
 Output folder and file structure is similar the structure of EPU sessions, but simplified and with atlases at the root:
 ```
 <session_name>/
-  index.html                                       interactive atlas/overview page
-  atlas.[png, mrc]                                 plain atlas
-  atlas_selected.png                               atlas with acquired gridsquares annotated
-  atlas_categories.png                             atlas with EPU categorization annotations
+  index.html                                          interactive atlas/overview page
+  atlas.[png, mrc, xml]                               plain atlas
+  atlas_selected.png                                  atlas with acquired gridsquares annotated
+  atlas_categories.png                                atlas with EPU categorization annotations
   GridSquare_<id>/
-    index.html                                     interactive gridsquare page
-    GridSquare_<id>.[png, mrc]                     gridsquare image
-    GridSquare_<id>_annotated.png                  gridsquare image with acquired holes annotated
+    index.html                                        interactive gridsquare page
+    GridSquare_<id>.[png, mrc, xml]                   gridsquare image
+    GridSquare_<id>_annotated.png                     gridsquare image with acquired holes annotated
     FoilHoles/
-      FoilHole_<id>.[png, mrc]                     most recent Foilhole images for all imaged holes
+      FoilHole_<id>.[png, mrc, xml]                   most recent Foilhole images for all imaged holes
       ...
     Data/
-      FoilHole_<hole id>_Data_*_<id>.[png, mrc]    full magnification data images
+      FoilHole_<hole id>_Data_*_<id>.[png, mrc, xml]  full magnification data images
 ```
 
 ## Supported data
