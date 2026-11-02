@@ -90,14 +90,15 @@ def _hole_records(square, gs_output):
     return holes
 
 
-def generate_html(session, session_output, has_atlas=True):
+def generate_html(session, session_output):
     """
     Write the HTML pages for a session: the root ``index.html`` (the atlas page, or just the gridsquare cards if
     there is no atlas) and the ``GridSquare_<id>/index.html`` page of each gridsquare whose gridsquare image was written.
 
     This has to be called after all the PNG files have been written to `session_output`: the pages only list the images
-    that exist there.
+    that exist there, and the session is taken to have an atlas if ``atlas.png`` was written.
     """
+    has_atlas = session.atlas_image is not None and os.path.isfile(os.path.join(session_output, "atlas.png"))
     atlas_width = atlas_height = None
     if has_atlas:
         with Image.open(os.path.join(session_output, "atlas.png")) as atlas_png:

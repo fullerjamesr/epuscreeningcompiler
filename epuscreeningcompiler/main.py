@@ -74,8 +74,6 @@ def process_session(session, output_root, onlypng=False, verbose=False):
         print(f"Processing session '{session.session_name}'")
 
     # --- Atlas images ---
-    # GridSquare HTML pages need to know if there is an atlas page to link back to
-    atlas_written = False
     if session.atlas_image is None:
         pass  # no atlas metadata was available (outer scope like main() should have already warned)
     elif not os.path.isfile(session.atlas_image.image_path):
@@ -86,7 +84,6 @@ def process_session(session, output_root, onlypng=False, verbose=False):
         image.scale_arr(atlas_arr, inplace=True)
         atlas_output_root = os.path.join(session_output, "atlas")
         image.arr_to_png(atlas_arr, atlas_output_root + ".png")
-        atlas_written = True
         if not onlypng:
             shutil.copy2(session.atlas_image.image_path,
                          atlas_output_root + os.path.splitext(session.atlas_image.image_path)[1])
@@ -127,7 +124,6 @@ def process_session(session, output_root, onlypng=False, verbose=False):
                                   color=epu.ATLAS_CATEGORY_COLOR_MAP.get(sq.category, "red"))
         atlas_img.save(os.path.join(session_output, "atlas_categories.png"),
                        format='png', compress_level=9)
-        atlas_written = True
 
     # --- Per-gridsquare images ---
     for sel_id in session.selected_gridsquares:
@@ -202,7 +198,7 @@ def process_session(session, output_root, onlypng=False, verbose=False):
                         shutil.copy2(acq_src, acq_output)
                         shutil.copy2(acq.metadata_path, acq_output)
 
-    html_output.generate_html(session, session_output, has_atlas=atlas_written)
+    html_output.generate_html(session, session_output)
 
 
 def main():
