@@ -28,11 +28,19 @@ The HTML output is entirely self-contained and dependency free -- no internet co
 
 Requires Python 3.8 or newer.
 
+Assuming you have a conda/venv/whatever environment for epuscreeningcompiler set up and activated, you can grab this directly via:
+
 ```bash
 pip install git+https://github.com/fullerjamesr/epuscreeningcompiler.git
 ```
-
-<!-- TODO: confirm this URL once the repository is published -->
+You could create a suitable a conda environment like so:
+```bash
+conda create -n epuscreeningcompiler -c conda-forge python=3.14 numpy pandas jinja2 pillow scikit-learn mrcfile
+```
+If you are installing this directly on a Thermo microscope PC, there is nothing pre-installed that provides git binaries for `pip` to use to grab this repo, so you might also further want to do:
+```bash
+conda install -n epuscreeningcompiler git
+```
 
 ## Usage
 
