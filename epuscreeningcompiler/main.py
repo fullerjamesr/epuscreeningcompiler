@@ -201,7 +201,7 @@ def process_session(session, output_root, onlypng=False, verbose=False):
     html_output.generate_html(session, session_output)
 
 
-def main():
+def build_argparse():
     import argparse
     parser = argparse.ArgumentParser(
         description="Create a simplified, annotated file hierarchy from EPU screening data",
@@ -225,7 +225,11 @@ def main():
                         help="Print progress information")
     parser.add_argument("epu_sessions", nargs="+",
                         help="Root folder(s) for EPU data collection sessions (each must contain EpuSession.dm)")
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv=None):
+    args = build_argparse().parse_args(argv)
 
     # We need to support Windows because the scope PCs run windows. This leads to 2 annoying issues:
     # 1) Windows can have a limit of 260 characters on paths. We need to check that to warn users.
